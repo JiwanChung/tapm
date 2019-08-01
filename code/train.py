@@ -1,10 +1,10 @@
-from collections import DefaultDict
+from collections import defaultdict
 
 
 def train(args, model, loss_fn, optimizer, tokenizer, dataloaders, logger):
 
     for epoch in range(args.max_epoch):
-        epoch_stats = DefaultDict(lambda x: 0)
+        epoch_stats = defaultdict(lambda x: 0)
         for n_step, (sentences, lengths, targets) in enumerate(dataloaders['train']):
             B = sentences.shape[0]
             logits, reg_loss, scores, keywords = model(sentences, lengths)
