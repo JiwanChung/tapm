@@ -1,0 +1,79 @@
+import math
+
+import torch
+from torch import nn
+import torch.nn.functional as F
+
+from utils import unsqueeze_expand
+
+
+class Encoder(nn.Module):
+    def __init__(self, args, transformer, tokenizer):
+        super(Encoder, self).__init__()
+
+        self.threshold = args.keyword_threshold
+        self.gap = args.threshold_gap
+        self.aggregate = {
+            'mean': lambda x, dim: x.mean(dim=dim),
+            'max': lambda x, dim: x.max(dim=dim)[0],
+        }[args.transformer_pool.lower()]
+
+        self.transformer = transformer
+        self.embed = self.transformer.wte
+        self.tokenizer = tokenizer
+        self.pad_id = self.tokenizer.pad_id
+
+    def forward(self, sentence, lengths):
+        B = sentence.shape[0]
+        h, _, = self.transformer(sentence)
+
+        h = self.aggregate(h, -1)
+        scores = torch.sigmoid(h)
+        for i in range(B):
+            scores[i, lengths[i]:] = 0  # masking pads
+        threshold = self.get_threshold(lengths)
+        score_regularization_loss = self.get_score_loss(scores, threshold)
+
+        # sort by score and threshold
+        sorted_idx = scores.argsort(dim=-1, descending=True)
+        # clumsy implementation of length-wise thresholding
+        threshold_idx = sorted_idx
+        for i in range(B):
+            threshold_idx[i, threshold[i] + self.gap:] = 0
+        scores = self.gather_with_idx(threshold_idx, scores)
+        keywords = sentence
+        keywords[keywords == 0] = -1
+        keywords = self.gather_with_idx(threshold_idx, keywords)
+        keywords[keywords < 0] = 0
+        keywords[keywords == 0] = self.pad_id
+
+        # cut 0 indices
+        keyword_lengths = (threshold_idx != 0).sum(-1)
+        max_keyword_length = keyword_lengths.max()
+        scores = scores[:, :max_keyword_length]
+        keywords = keywords[:, :max_keyword_length]
+
+        return keywords, keyword_lengths, scores, score_regularization_loss
+
+    def gather_with_idx(self, idx, t):
+        gather_dim = len(idx.shape) - 1
+        idx = unsqueeze_expand(idx, t)
+        t = torch.gather(t, gather_dim, idx)
+        return t * (idx != 0).type_as(t)
+
+    def get_score_loss(self, scores, threshold):
+        # get root(l-1/2-norm)
+        # scores >= 0
+        # the intuition of this loss is to make the score sparse,
+        # while getting 0 for num == threshold
+        loss = (scores ** (1 / 2)).sum(dim=-1)
+        loss = ((loss / threshold.float()) - 1)
+        return loss
+
+    def get_threshold(self, lengths):
+        if self.threshold >= 1:
+            # length threshold num
+            return torch.empty_like(lengths).fill_(math.floor(self.threshold)).long()
+        else:
+            # length threshold ratio
+            return (lengths.float() * self.threshold).floor().long()
