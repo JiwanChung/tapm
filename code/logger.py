@@ -27,9 +27,16 @@ class Logger:
         print(f"Running Tensorboard at {url}")
 
     def __call__(self, name, val, n_iter):
-        self.tfboard.add_scalar(name, val, n_iter)
-        if self.log_cmd:
-            tqdm.write(f'{n_iter}:({name},{val})')
+        if isinstance(val, str):
+            self.tfboard.add_text(name, val, n_iter)
+            if self.log_cmd:
+                tqdm.write(f'{n_iter}:({name},{val})')
+        elif isinstance(val, int) or isinstance(val, float):
+            self.tfboard.add_scalar(name, val, n_iter)
+            if self.log_cmd:
+                tqdm.write(f'{n_iter}:({name},{val})')
+        else:
+            print(f"unloggable type: {type(val)}/{val}")
 
 
 def run_tensorboard(log_path):

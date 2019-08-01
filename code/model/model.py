@@ -10,12 +10,18 @@ class Model(nn.Module):
     def __init__(self, args, transformers, tokenizer):
         super(Model, self).__init__()
 
-        self.encoder = Encoder(args, transformers['encoder'], tokenizer)
+        self.use_keyword = args.use_keyword
+
+        if self.use_keyword:
+            self.encoder = Encoder(args, transformers['encoder'], tokenizer)
         self.decoder = Decoder(args, transformers['decoder'], tokenizer)
 
     def forward(self, sentence, lengths):
-        keywords, keyword_lengths, scores, reg_loss = \
-            self.encoder(sentence, lengths)
-        logits = self.decoder(sentence, keywords,
-                              keyword_lengths, scores)
+        if self.use_keyword:
+            keywords, keyword_lengths, scores, reg_loss = \
+                self.encoder(sentence, lengths)
+        else:
+            keywords, keyword_lengths, scores, reg_loss = None, None, None, None
+        logits = self.decoder(sentence, lengths,
+                              keywords, keyword_lengths, scores)
         return logits, reg_loss, scores, keywords

@@ -37,9 +37,12 @@ class Cli:
 
     def load_dataloader(self, **kwargs):
         args = self._default_args(**kwargs)
+        data_paths = ['train', 'val', 'test']
+        data_paths = {k: args[f"{k}_path"] for k in data_paths
+                      if f"{k}_path" in args}
 
         models, tokenizer = get_transformer(args.transformer_name)
-        dataloaders = get_dataloaders(args, tokenizer)
+        dataloaders = get_dataloaders(args, data_paths, tokenizer)
 
         return args, models, tokenizer, dataloaders
 
@@ -48,10 +51,9 @@ class Cli:
             self.load_dataloader(**kwargs)
         model = Model(args, models, tokenizer)
         model.to(args.device)
-        eps = args.get('label_smoothing', 0)
-        loss_fn = Loss(eps=eps, padding_idx=tokenizer.pad_id)
+        loss_fn = Loss(padding_idx=tokenizer.pad_id)
         logger = Logger(args)
-        optimizer = get_optimizer(model.parameters(), lr=args.learning_rate)
+        optimizer = get_optimizer(args, model, dataloaders)
 
         train(args, model, loss_fn, optimizer, tokenizer, dataloaders, logger)
 

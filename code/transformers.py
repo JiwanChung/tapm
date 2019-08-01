@@ -16,13 +16,13 @@ Models = {
 def get_transformer(model_name):
     default_special_tokens = {
         'unk_token': "[UNK]",
-        'sep_token': "[SEP]",
-        'cls_token': "[CLS]",
+        'sep_token': "<|endoftext|>",
+        # 'cls_token': "[CLS]",
         'pad_token': "[PAD]",
     }
     special_tokens = {
-        'type_a': '[TYPE_A]',
-        'type_b': '[TYPE_B]',
+        # 'type_a': '[TYPE_A]',
+        # 'type_b': '[TYPE_B]',
         'person': '[SOMEONE]'
     }
     model_class, tokenizer, model_name = Models[model_name]
@@ -31,10 +31,6 @@ def get_transformer(model_name):
     # unk is needed to add other special tokens
     tokenizer.add_special_tokens({**special_tokens,
                                   **default_special_tokens})
-    tokenizer.encoder = {**tokenizer.encoder, **tokenizer.added_tokens_encoder}
-    tokenizer.decoder = {**tokenizer.decoder, **tokenizer.added_tokens_decoder}
-    for token in special_tokens.values():
-        assert token in tokenizer.encoder, f"Failed to add token {token} to vocab!"
     for k, v in tokenizer.special_tokens_map.items():
         if k.endswith('_token'):
             setattr(tokenizer, f"{k[:-6]}_id",
@@ -47,13 +43,13 @@ def get_transformer(model_name):
     encoder = model_class.from_pretrained(model_name)
     decoder = model_class.from_pretrained(model_name)
     # resize embeddings
-    encoder._resize_token_embeddings(tokenizer.vocab_size + 1)
-    decoder._resize_token_embeddings(tokenizer.vocab_size + 1)
+    encoder.resize_token_embeddings(len(tokenizer))
+    decoder.resize_token_embeddings(len(tokenizer))
     # share embeddings
-    decoder.wte.weight.data = encoder.wte.weight.data
-    decoder.wpe.weight.data = encoder.wpe.weight.data
+    decoder.wte.weight = encoder.wte.weight
+    decoder.wpe.weight = encoder.wpe.weight
 
-    return (encoder, decoder), tokenizer
+    return {'encoder': encoder, 'decoder': decoder}, tokenizer
 
 
 def make_batch(tokenizer, sentences):
@@ -61,10 +57,9 @@ def make_batch(tokenizer, sentences):
     sentences = [tokenizer.encode(t) for t in sentences]
 
     targets = [torch.Tensor([*t, tokenizer.sep_id]) for t in sentences]
-    sentences = [torch.Tensor(t) for t in sentences]
+    sentences = [torch.Tensor([tokenizer.sep_id, *t]) for t in sentences]
     sentences, lengths = pad(sentences, tokenizer.pad_id)
     targets, _ = pad(targets, tokenizer.pad_id)
-    # getting length
 
     return sentences, lengths, targets
 
@@ -73,13 +68,17 @@ def pad(x, pad_id=0):
     B = len(x)
     lengths = [t.shape[0] for t in x]
     max_len = max(lengths)
-    res = torch.full((B, max_len), pad_id, dtype=torch.long)
+    res = torch.full((B, max_len), pad_id, dtype=torch.long).to(x[0].device)
     for i in range(B):
         res[i, :x[i].shape[0]] = x[i]
-    lengths = torch.LongTensor(lengths)
+    lengths = torch.LongTensor(lengths).to(x[0].device)
 
     return res, lengths
 
 
 def remove_pad(x, pad_id=0):
     return x[:(x != pad_id).sum(-1)]
+
+
+def decode_tensor(tokenizer, x):
+    return tokenizer.decode(remove_pad(x, tokenizer.pad_id).cpu().numpy())

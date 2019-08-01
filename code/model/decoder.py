@@ -9,26 +9,45 @@ class Decoder(nn.Module):
     def __init__(self, args, transformer, tokenizer):
         super(Decoder, self).__init__()
 
+        self.use_keyword = args.use_keyword
+
         self.transformer = transformer
         self.tokenizer = tokenizer
         self.pad_id = self.tokenizer.pad_id
+        if hasattr(self.tokenizer, 'cls_id'):
+            self.cls_id = self.tokenizer.cls_id
+        '''
         self.type_ids = (self.tokenizer.convert_tokens_to_ids(self.tokenizer.type_a),
                          self.tokenizer.convert_tokens_to_ids(self.tokenizer.type_b))
+        '''
         transformer_embed_dim = self.transformer.wte.weight.shape[1]
         self.out = nn.Linear(transformer_embed_dim,
-                             tokenizer.vocab_size)
+                             len(tokenizer), bias=False)
+        # tie weight
+        self.out.weight = self.transformer.wte.weight
 
-    def forward(self, sentence, keywords, keyword_lengths, scores):
-        inputs, lengths = self.concat_input(keywords, sentence)
-        tids = self.make_token_type_ids(inputs, keyword_lengths, self.type_ids)
-        # mask = self.make_attention_mask(inputs, self.pad_id)
+    def forward(self, sentence, lengths, keywords, keyword_lengths, scores):
+        tids = None
+        if self.use_keyword:
+            inputs, lengths = self.concat_input(keywords, sentence)
+            #tids = self.make_token_type_ids(inputs, keyword_lengths, self.type_ids)
+        else:
+            inputs = sentence
+        head_mask = self.make_head_mask(inputs)
         h, past, head_mask = transformer_embed(self.transformer, inputs,
-                              token_type_ids=tids)
-        h = self.multiply_score(h, scores)
+                              token_type_ids=tids, head_mask=head_mask)
+        if self.use_keyword:
+            h = self.multiply_score(h, scores)
         logits, _ = transformer_run_cells(self.transformer, h, inputs,
                                           token_type_ids=tids,
                                           past=past, head_mask=head_mask)
-        logits = self.cut_output(keyword_lengths, lengths, logits)
+        if self.use_keyword:
+            logits = self.cut_output(keyword_lengths, lengths, logits)
+            with torch.no_grad():
+                sentence_after = self.cut_output(keyword_lengths, lengths, inputs)
+                assert (sentence == sentence_after).all(), \
+                    f"cut output error: {sentence} -> {sentence_after}"
+
         logits = self.out(logits)
         return logits  # B (max_len + [SEP]) V
 
@@ -41,11 +60,23 @@ class Decoder(nn.Module):
             ids[i, 1: keyword_lengths[i] + 1] = type_ids[0]
         return ids
 
-    @staticmethod
-    def multiply_score(h, scores):
+    def make_head_mask(self, inputs):
+        # layer batch heads length length
+        B, L = inputs.shape
+        attention_mask = (inputs != self.pad_id).contiguous()  # batch length
+        head_mask = torch.ones(B, L, L, dtype=attention_mask.dtype).to(inputs.device)
+        head_mask = head_mask * attention_mask.view(B, 1, L) \
+            * attention_mask.view(B, L, 1)  # B L L
+        head_mask = head_mask.view(1, B, 1, L, L)
+        return head_mask.expand(self.transformer.config.n_layer, -1, -1, -1, -1)
+
+    def multiply_score(self, h, scores):
         B = h.shape[0]
+        cls_num = 0
+        if hasattr(self, 'cls_id'):
+            cls_num = 1
         for i in range(B):
-            h[i, 1: scores[i].shape[0] + 1] *= scores[i].unsqueeze(-1)
+            h[i, cls_num: scores[i].shape[0] + cls_num] *= scores[i].unsqueeze(-1)
 
         return h
 
@@ -54,26 +85,32 @@ class Decoder(nn.Module):
         B = keywords.shape[0]
         res = []
         for i in range(B):
-            res.append(torch.Tensor([self.tokenizer.cls_id,
-                        *remove_pad(keywords[i], self.pad_id).cpu().numpy(),
-                        self.tokenizer.sep_id,
-                        *remove_pad(sentence[i], self.pad_id).cpu().numpy(),
-                        self.tokenizer.sep_id]).long())
+             x = [*remove_pad(keywords[i], self.pad_id).cpu().numpy(),
+                *remove_pad(sentence[i], self.pad_id).cpu().numpy()]
+             if hasattr(self, 'cls_id'):
+                 x = [self.tokenizer.cls_id, *x]
+             res.append(torch.Tensor(x).long().to(sentence.device))
         res, lengths = pad(res, self.pad_id)
 
         return res, lengths
 
     def cut_output(self, keyword_lengths, lengths, x):
-        # CLS keyword SEP sent SEP pad -> sent SEP (the target is shifted right)
+        # keyword SEP sent pad -> sent SEP (the target is shifted right)
+        cls_num = 0
+        if hasattr(self, 'cls_id'):
+            cls_num = 1
+
         B = keyword_lengths.shape[0]
         res = []
         for i in range(B):
-            res.append(x[i, keyword_lengths[i] + 1: lengths[i] - 1])
+            res.append(x[i, keyword_lengths[i] + cls_num: lengths[i]])
         # pad zeros
         max_len = max([i.shape[0] for i in res])
         shape = list(x.shape)
         shape[1] = max_len
-        x = torch.zeros(*shape, dtype=x.dtype)
+        x = torch.zeros(*shape, dtype=x.dtype).to(x.device)
+        if x.dtype == torch.long:
+            x.fill_(self.pad_id)
         for i in range(B):
             x[i, :res[i].shape[0]] = res[i]
         return x

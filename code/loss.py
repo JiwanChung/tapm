@@ -8,14 +8,27 @@
 # from fairseq
 import math
 
+from torch import nn
 import torch.nn.functional as F
 from torch.nn.modules.loss import _Loss
 
 
+class Loss(nn.CrossEntropyLoss):
+    def __init__(self, padding_idx=0):
+        super(Loss, self).__init__(ignore_index=padding_idx)
+
+    def forward(self, hypo, tgt):
+        hypo = hypo.contiguous()
+        tgt = tgt.contiguous()
+        loss = super().forward(hypo.view(-1, hypo.shape[-1]),
+                               tgt.view(-1))
+        return loss, {}
+
+
 # label smoothed cross entropy
-class Loss(_Loss):
-    def __init__(self, size_average=None, reduce=None, reduction='sum', eps=0, padding_idx=0):
-        super(Loss, self).__init__(size_average, reduce, reduction)
+class SmoothLoss(_Loss):
+    def __init__(self, size_average=None, reduce=None, reduction='mean', eps=0, padding_idx=0):
+        super(SmoothLoss, self).__init__(size_average, reduce, reduction)
 
         self.eps = eps
         self.padding_idx = padding_idx

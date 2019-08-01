@@ -4,7 +4,7 @@ import torch
 from torch import nn
 import torch.nn.functional as F
 
-from utils import unsqueeze_expand
+from tensor_utils import unsqueeze_expand
 
 
 class Encoder(nn.Module):
@@ -24,11 +24,15 @@ class Encoder(nn.Module):
         self.pad_id = self.tokenizer.pad_id
 
     def forward(self, sentence, lengths):
+        # remove first sep
+        sentence = sentence[:, 1:]
+        lengths = lengths - 1
+
         B = sentence.shape[0]
         h, _, = self.transformer(sentence)
 
         h = self.aggregate(h, -1)
-        scores = torch.sigmoid(h)
+        scores = torch.sigmoid(h).clone()
         for i in range(B):
             scores[i, lengths[i]:] = 0  # masking pads
         threshold = self.get_threshold(lengths)
@@ -38,17 +42,16 @@ class Encoder(nn.Module):
         sorted_idx = scores.argsort(dim=-1, descending=True)
         # clumsy implementation of length-wise thresholding
         threshold_idx = sorted_idx
-        for i in range(B):
-            threshold_idx[i, threshold[i] + self.gap:] = 0
         scores = self.gather_with_idx(threshold_idx, scores)
-        keywords = sentence
-        keywords[keywords == 0] = -1
+        for i in range(B):
+            scores[i, threshold[i] + self.gap:] = 0
+        keywords = sentence.clone()
         keywords = self.gather_with_idx(threshold_idx, keywords)
-        keywords[keywords < 0] = 0
-        keywords[keywords == 0] = self.pad_id
+        for i in range(B):
+            keywords[i, threshold[i] + self.gap:] = self.pad_id
 
         # cut 0 indices
-        keyword_lengths = (threshold_idx != 0).sum(-1)
+        keyword_lengths = (keywords != self.pad_id).sum(-1)
         max_keyword_length = keyword_lengths.max()
         scores = scores[:, :max_keyword_length]
         keywords = keywords[:, :max_keyword_length]

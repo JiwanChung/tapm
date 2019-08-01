@@ -41,14 +41,12 @@ class DataLoader(data.DataLoader):
 
     def pad_collate(self, sent_li):
         res = make_batch(self.tokenizer, sent_li)
-        for r in res:
-            r.to(self.device)
         return res
 
 
-def get_dataloaders(args, tokenizer):
+def get_dataloaders(args, paths, tokenizer):
     dataloaders = {}
-    for k, p in args.data_paths.items():
+    for k, p in paths.items():
         dataset = Dataset(p)
         dataloader = DataLoader(dataset, batch_size=args.batch_sizes[k],
                                 shuffle=True, num_workers=args.num_workers,
