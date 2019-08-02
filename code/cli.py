@@ -5,6 +5,7 @@ from fire import Fire
 from munch import Munch
 
 import torch
+import numpy as np
 
 from config import config, debug_options, log_keys
 from utils import wait_for_key
@@ -90,6 +91,9 @@ def fix_seed(args):
     if 'random_seed' not in args:
         args['random_seed'] = 0
     random.seed(args['random_seed'])
+    np.random_seed(args['random_seed'])
+    torch.manual_seed(args['random_seed'])
+    torch.cuda.manual_seed_all(args['random_seed'])
     return args
 
 
