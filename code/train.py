@@ -8,10 +8,11 @@ from transformers import decode_tensor
 
 def train(args, model, loss_fn, optimizer, tokenizer, dataloaders, logger):
     print(f"training steps: {len(dataloaders['train'])}")
+    n_step = 0
     for epoch in range(args.max_epoch):
         epoch_stats = defaultdict(float)
         model.train()
-        for n_step, (sentences, lengths, targets) in enumerate(dataloaders['train']):
+        for sentences, lengths, targets in dataloaders['train']:
             sentences, lengths, targets = move_device(sentences, lengths, targets,
                                                       to=args.device)
             B = sentences.shape[0]
@@ -25,6 +26,7 @@ def train(args, model, loss_fn, optimizer, tokenizer, dataloaders, logger):
             final_loss.backward()
             optimizer[1].step()
             optimizer[0].step()
+            n_step += 1
 
             stats = {**stats, **{
                 'loss': loss.item(),

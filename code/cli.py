@@ -7,6 +7,7 @@ from munch import Munch
 import torch
 
 from config import config, debug_options, log_keys
+from utils import wait_for_key
 from train import train
 from model.model import Model
 from loss import Loss
@@ -56,6 +57,9 @@ class Cli:
         optimizer = get_optimizer(args, model, dataloaders)
 
         train(args, model, loss_fn, optimizer, tokenizer, dataloaders, logger)
+
+        # hold process to keep tensorboard alive
+        wait_for_key()
 
         '''
     def evaluate(self, **kwargs):

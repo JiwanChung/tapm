@@ -1,6 +1,8 @@
 from collections import defaultdict
 from datetime import datetime
 
+import six
+
 import torch
 from torch.nn.utils import clip_grad_norm_
 
@@ -58,3 +60,13 @@ def clip_grad(model, max_norm=1):
     if max_norm is not None:
         for p in model.parameters():
             clip_grad_norm_(p, max_norm)
+
+
+def wait_for_key(key="y"):
+    text = ""
+    while (text != key):
+        text = six.moves.input(f"Press {key} to quit")
+        if text == key:
+            print("terminating process")
+        else:
+            print(f"key {key} unrecognizable")
