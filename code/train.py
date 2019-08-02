@@ -39,6 +39,9 @@ def train(args, model, loss_fn, optimizer, tokenizer, dataloaders, logger):
                 epoch_stats[k] = epoch_stats[k] + B * v
             epoch_stats['num'] = epoch_stats['num'] + B
 
+            # log lr
+            stats['lr'] = optimizer[0].get_lr()
+
             for name, val in stats.items():
                 logger(f"iters/{name}", val, n_step)
             if args.log_text_every > 0 and \

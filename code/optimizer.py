@@ -61,6 +61,15 @@ class AdamW(optim.Optimizer):
                         correct_bias=correct_bias)
         super(AdamW, self).__init__(params, defaults)
 
+    def get_lr(self):
+        lr = []
+        for group in self.param_groups:
+            for p in group['params']:
+                if p.grad is None:
+                    continue
+                lr.append(group['lr'])
+        return sum(lr) / len(lr)
+
     def step(self, closure=None):
         """Performs a single optimization step.
 
