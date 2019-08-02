@@ -18,7 +18,8 @@ config = {
     'sample': False,
     'log_cmd': False,
     'log_path': '../log',
-    'log_text_every': 5000,
+    'log_text_every': 2000,
+    'hostname': 'snu.vision',
 }
 
 debug_options = {

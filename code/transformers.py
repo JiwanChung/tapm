@@ -14,23 +14,23 @@ Models = {
 
 
 def get_transformer(model_name):
+    # trying to not add additional tokens to orig vocab
     default_special_tokens = {
-        'unk_token': "[UNK]",
+        'unk_token': "___",
         'sep_token': "<|endoftext|>",
         # 'cls_token': "[CLS]",
-        'pad_token': "[PAD]",
+        'pad_token': "_____",
     }
     special_tokens = {
         # 'type_a': '[TYPE_A]',
         # 'type_b': '[TYPE_B]',
-        'person': '[SOMEONE]'
+        # 'person': '[SOMEONE]'
     }
     model_class, tokenizer, model_name = Models[model_name]
 
     tokenizer = tokenizer.from_pretrained(model_name, **default_special_tokens)
     # unk is needed to add other special tokens
-    tokenizer.add_special_tokens({**special_tokens,
-                                  **default_special_tokens})
+    tokenizer.add_special_tokens(special_tokens)
     for k, v in tokenizer.special_tokens_map.items():
         if k.endswith('_token'):
             setattr(tokenizer, f"{k[:-6]}_id",
@@ -43,8 +43,9 @@ def get_transformer(model_name):
     encoder = model_class.from_pretrained(model_name)
     decoder = model_class.from_pretrained(model_name)
     # resize embeddings
-    encoder.resize_token_embeddings(len(tokenizer))
-    decoder.resize_token_embeddings(len(tokenizer))
+    if tokenizer.vocab_size != len(tokenizer):
+        encoder.resize_token_embeddings(len(tokenizer))
+        decoder.resize_token_embeddings(len(tokenizer))
     # share embeddings
     decoder.wte.weight = encoder.wte.weight
     decoder.wpe.weight = encoder.wpe.weight

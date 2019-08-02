@@ -91,7 +91,7 @@ def fix_seed(args):
     if 'random_seed' not in args:
         args['random_seed'] = 0
     random.seed(args['random_seed'])
-    np.random_seed(args['random_seed'])
+    np.random.seed(args['random_seed'])
     torch.manual_seed(args['random_seed'])
     torch.cuda.manual_seed_all(args['random_seed'])
     return args
