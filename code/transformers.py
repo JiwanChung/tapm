@@ -1,15 +1,14 @@
 import torch
 from pytorch_transformers import (
-    BertModel, GPT2Model, XLNetModel,
-    BertTokenizer, GPT2Tokenizer, XLNetTokenizer
+    GPT2DoubleHeadsModel, GPT2Tokenizer
 )
 
 
 # we support only GPT2 at the moment
 Models = {
-    #'bert': (BertModel, BertTokenizer, 'bert-base-uncased'),  we need a language model
-    'gpt2': (GPT2Model, GPT2Tokenizer, 'gpt2'),
-    'xlnet': (XLNetModel, XLNetTokenizer, 'xlnet-base-cased'),
+    # 'bert': (BertModel, BertTokenizer, 'bert-base-uncased'),  we need a language model
+    # 'xlnet': (XLNetModel, XLNetTokenizer, 'xlnet-base-cased'),
+    'gpt2': (GPT2DoubleHeadsModel, GPT2Tokenizer, 'gpt2'),
 }
 
 
@@ -47,8 +46,8 @@ def get_transformer(model_name):
         encoder.resize_token_embeddings(len(tokenizer))
         decoder.resize_token_embeddings(len(tokenizer))
     # share embeddings
-    decoder.wte.weight = encoder.wte.weight
-    decoder.wpe.weight = encoder.wpe.weight
+    decoder.transformer.wte.weight = encoder.transformer.wte.weight
+    decoder.transformer.wpe.weight = encoder.transformer.wpe.weight
 
     return {'encoder': encoder, 'decoder': decoder}, tokenizer
 

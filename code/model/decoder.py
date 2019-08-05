@@ -6,12 +6,14 @@ from transformers import remove_pad, pad
 
 
 class Decoder(nn.Module):
-    def __init__(self, args, transformer, tokenizer):
+    def __init__(self, args, pretrained_lm, tokenizer):
         super(Decoder, self).__init__()
 
         self.use_keyword = args.use_keyword
 
-        self.transformer = transformer
+        self.pretrained_lm = pretrained_lm
+        self.transformer = self.pretrained_lm.transformer
+        self.lm = self.pretrained_lm.lm_head
         self.tokenizer = tokenizer
         self.pad_id = self.tokenizer.pad_id
         if hasattr(self.tokenizer, 'cls_id'):
@@ -20,11 +22,6 @@ class Decoder(nn.Module):
         self.type_ids = (self.tokenizer.convert_tokens_to_ids(self.tokenizer.type_a),
                          self.tokenizer.convert_tokens_to_ids(self.tokenizer.type_b))
         '''
-        transformer_embed_dim = self.transformer.wte.weight.shape[1]
-        self.out = nn.Linear(transformer_embed_dim,
-                             len(tokenizer), bias=False)
-        # tie weight
-        self.out.weight = self.transformer.wte.weight
 
     def forward(self, sentence, lengths, keywords, keyword_lengths, scores):
         tids = None
@@ -38,9 +35,10 @@ class Decoder(nn.Module):
                               token_type_ids=tids, head_mask=head_mask)
         if self.use_keyword:
             h = self.multiply_score(h, scores)
-        logits, _ = transformer_run_cells(self.transformer, h, inputs,
+        o = transformer_run_cells(self.transformer, h, inputs,
                                           token_type_ids=tids,
                                           past=past, head_mask=head_mask)
+        logits = self.lm(o[0])
         if self.use_keyword:
             logits = self.cut_output(keyword_lengths, lengths, logits)
             with torch.no_grad():
@@ -48,7 +46,6 @@ class Decoder(nn.Module):
                 assert (sentence == sentence_after).all(), \
                     f"cut output error: {sentence} -> {sentence_after}"
 
-        logits = self.out(logits)
         return logits  # B (max_len + [SEP]) V
 
     @staticmethod
