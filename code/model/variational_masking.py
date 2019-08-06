@@ -17,9 +17,9 @@ class VariationalMasking(nn.Module):
     def __init__(self, args, transformer, tokenizer):
         super(VariationalMasking, self).__init__()
 
-        self.masking_prob = 1 - args.get('keyword_ratio', 1 / 2)
+        self.keyword_ratio = args.get('keyword_ratio', 1 / 2)
         self.hard_masking_prob = args.get('hard_masking_prob', 1 / 2)
-        self.mean = self.get_mean(self.masking_prob)
+        self.mean = self.get_mean(self.keyword_ratio)
 
         self.pad_id = tokenizer.pad_id
 
@@ -39,10 +39,10 @@ class VariationalMasking(nn.Module):
         self.logvar_encoder = nn.Linear(bert_dim, 1)
 
     @staticmethod
-    def get_mean(masking_prob):
+    def get_mean(keyword_ratio):
         # intuition: a token will be masked with probability p
         # using inverse cdf function of gaussian
-        return math.sqrt(2) * erfinv(2 * masking_prob - 1)
+        return math.sqrt(2) * erfinv(2 * keyword_ratio - 1)
 
     def gaussian_encoder(self, x):
         return self.mean_encoder(x).squeeze(-1), self.logvar_encoder(x).squeeze(-1)
@@ -61,9 +61,8 @@ class VariationalMasking(nn.Module):
         else:
             return random.random() <= self.hard_masking_prob
 
-    @staticmethod
-    def kl_div(mu, logvar):
-        return -0.5 * (1 + logvar - mu.pow(2) - logvar.exp())
+    def kl_div(self, mu, logvar):
+        return -0.5 * (1 + logvar - (mu - self.mean).pow(2) - logvar.exp())
 
     def forward(self, sentence, lengths, targets):
         attention_mask = sentence != self.pad_id
@@ -74,7 +73,8 @@ class VariationalMasking(nn.Module):
         z = self.reparameterize(mean, logvar)
         z = torch.sigmoid(z)
         m = z - 1 / 2  # mean to 0
-        keyword_ratio = (m >= 0).float().mean().item()
+        masks = (m >= 0)  # true for none-masked tokens
+        keyword_ratio = masks.float().mean().item()
         if self.get_hard_mask():
             m = F.relu(m)
         x = m.unsqueeze(-1) * a
@@ -82,11 +82,20 @@ class VariationalMasking(nn.Module):
         logits = outputs[0]
 
         kl_loss = self.kl_div(mean, logvar)
+
         stats = {
             'keyword_ratio': keyword_ratio,
-            'kl_loss': kl_loss.mean().item()
+            'gt_mu': self.mean,
+            'mu': mean.mean().item(),
+            'std': logvar.exp().sqrt().mean().item(),
+            'kl_loss': kl_loss.mean().item(),
         }
-        masks = (m >= 0)
         keywords = [targets[i][masks[i]] for i in range(targets.shape[0])]
 
-        return logits, targets, kl_loss.sum(), stats, keywords
+        # get loss for masked tokens only
+        masked_logits = logits.contiguous().masked_select((~masks).contiguous().unsqueeze(-1))
+        masked_logits = masked_logits.contiguous().view(-1, logits.shape[-1])
+        masked_targets = targets.contiguous().masked_select(~masks).contiguous()
+
+        return masked_logits, masked_targets, kl_loss.mean(), \
+            stats, {'keywords': keywords, 'targets': targets}
