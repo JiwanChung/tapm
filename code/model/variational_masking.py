@@ -20,6 +20,7 @@ class VariationalMasking(nn.Module):
         self.keyword_ratio = args.get('keyword_ratio', 1 / 2)
         self.hard_masking_prob = args.get('hard_masking_prob', 1 / 2)
         self.mean = self.get_mean(self.keyword_ratio)
+        self.std = args.get('latent_std', 1)
 
         self.pad_id = tokenizer.pad_id
 
@@ -62,6 +63,7 @@ class VariationalMasking(nn.Module):
             return random.random() <= self.hard_masking_prob
 
     def kl_div(self, mu, logvar):
+        logvar = logvar - 2 * math.log(self.std)
         return -0.5 * (1 + logvar - (mu - self.mean).pow(2) - logvar.exp())
 
     def forward(self, sentence, lengths, targets):

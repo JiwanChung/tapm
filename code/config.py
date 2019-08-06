@@ -6,6 +6,7 @@ config = {
     'model': 'mask_model',
     'use_keyword': True,
     'keyword_ratio': 0.3,
+    'latent_std': 1,
 
     'learning_rate': 1e-5,
     'warmup_steps': 4000,
