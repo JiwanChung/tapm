@@ -1,5 +1,5 @@
 config = {
-    'reg_coeff': 0.001,
+    'reg_coeff': 1,
     'keyword_threshold': 1/3,
     'transformer_pool': 'mean',
     'threshold_gap': 3,

@@ -34,7 +34,7 @@ def train(args, model, loss_fn, optimizer, tokenizer, dataloaders, logger):
             if reg_loss is not None:
                 stats = {**stats, **{
                     'nll_loss': loss.item(),
-                    'reg_loss': reg_loss.mean().item(),
+                    'reg_loss': reg_loss.mean().item() * args.reg_coeff,
                     'final_loss': final_loss.item()
                 }}
             else:
@@ -53,15 +53,13 @@ def train(args, model, loss_fn, optimizer, tokenizer, dataloaders, logger):
                 logger(f"train/iters/{name}", val, n_step)
             if args.log_text_every > 0 and \
                     ((n_step + 1) % args.log_text_every == 0):
-                hypos = logits.argmax(dim=-1)
                 for i in range(B):
                     if keywords is not None:
-                        keyword = decode_tensor(tokenizer, keywords[i])
-                        logger(f"train/keyword", keyword, n_step)
-                    hypo = decode_tensor(tokenizer, hypos[i])
-                    logger(f"train/hypo", hypo, n_step)
-                    target = decode_tensor(tokenizer, targets[i])
-                    logger(f"train/target", target, n_step)
+                        keyword = {k: decode_tensor(tokenizer, v[i])
+                                    for k, v in keywords.items()}
+                        string = '\n'.join(list([f"{k}:{v}"
+                                                 for k, v in keyword.items()]))
+                        logger(f"train/keyword", string, n_step)
 
         num = epoch_stats.pop('num')
         epoch_stats = {k: v / num for k, v in epoch_stats.items()}
