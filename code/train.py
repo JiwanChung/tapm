@@ -68,5 +68,10 @@ def train(args, model, loss_fn, optimizer, tokenizer, dataloaders, logger):
         num = epoch_stats.pop('num')
         epoch_stats = {k: v / num for k, v in epoch_stats.items()}
         for name, val in epoch_stats.items():
-            logger(f"train/epoch/{name}", val, n_step)
-        evaluate(args, model, loss_fn, optimizer, tokenizer, dataloaders, logger)
+            logger(f"train/epoch/{name}", val, epoch)
+        eval_stats, _, _ = evaluate(args, model, loss_fn, optimizer, tokenizer, dataloaders, logger)
+
+        num = eval_stats.pop('num')
+        eval_stats = {k: v / num for k, v in eval_stats.items()}
+        for name, val in eval_stats.items():
+            logger(f"eval/epoch/{name}", val, epoch)

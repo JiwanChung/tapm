@@ -28,6 +28,8 @@ class Logger:
 
     def __call__(self, name, val, n_iter):
         if isinstance(val, str):
+            # https://stackoverflow.com/questions/45016458/tensorflow-tf-summary-text-and-linebreaks
+            val = val.replace('\n', '  \n')
             self.tfboard.add_text(name, val, n_iter)
             if self.log_cmd:
                 tqdm.write(f'{n_iter}:({name},{val})')
