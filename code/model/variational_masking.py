@@ -73,15 +73,18 @@ class VariationalMasking(nn.Module):
         z = self.reparameterize(mean, logvar)
         z = torch.sigmoid(z)
         m = z - 1 / 2  # mean to 0
-        masks = (m >= 0)  # true for none-masked tokens
-        keyword_ratio = masks.float().mean().item()
         if self.get_hard_mask():
             m = F.relu(m)
+        m[:, 0] = 0  # remove cls token
+        m[:, -1] = 0  # remove sep token
+        masks = (m > 0)  # true for none-masked tokens
+        keyword_ratio = masks.float().mean().item()
         x = m.unsqueeze(-1) * a
         outputs = self.decoder(x, attention_mask=attention_mask)
         logits = outputs[0]
 
-        kl_loss = self.kl_div(mean, logvar)
+        kl_loss = self.kl_div(mean[:, 1:-1], logvar[:, 1:-1])
+        # remove cls, sep token
 
         stats = {
             'keyword_ratio': keyword_ratio,
@@ -93,9 +96,13 @@ class VariationalMasking(nn.Module):
         keywords = [targets[i][masks[i]] for i in range(targets.shape[0])]
 
         # get loss for masked tokens only
-        masked_logits = logits.contiguous().masked_select((~masks).contiguous().unsqueeze(-1))
-        masked_logits = masked_logits.contiguous().view(-1, logits.shape[-1])
-        masked_targets = targets.contiguous().masked_select(~masks).contiguous()
+        # remove cls, sep token
+        masks_cut = masks[:, 1:-1]
+        logits_cut = logits[:, 1:-1]
+        targets_cut = targets[:, 1:-1]
+        masked_logits = logits_cut.contiguous().masked_select((~masks_cut).contiguous().unsqueeze(-1))
+        masked_logits = masked_logits.contiguous().view(-1, logits_cut.shape[-1])
+        masked_targets = targets_cut.contiguous().masked_select(~masks_cut).contiguous()
 
         return masked_logits, masked_targets, kl_loss.mean(), \
             stats, {'keywords': keywords, 'targets': targets}
