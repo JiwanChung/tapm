@@ -93,17 +93,25 @@ def evaluate_mask(args, model, loss_fn, tokenizer, dataloaders, logger, print_ou
                     keywords = decode_tensor(tokenizer, ids[i])
                     score = '/'.join(["%.2f" % j for j in scores[i].detach().cpu().numpy()])
                     target = decode_tensor(tokenizer, targets[i])
+                    string = f"keywords:{[f'({i}/{j})' for i, j in zip(keywords.split(), score.split('/'))]}  \ntarget:{target}"
+                    logger(f"eval/keyword", string, n_step)
+                    '''
                     logger(f"eval/keyword", keywords, n_step)
                     logger(f"eval/score", score, n_step)
                     logger(f"eval/target", target, n_step)
+                    '''
             if print_output:
                 for i in range(B):
                     keywords = decode_tensor(tokenizer, ids[i])
                     score = '/'.join(["%.2f" % j for j in scores[i].detach().cpu().numpy()])
                     target = decode_tensor(tokenizer, targets[i])
+                    string = f"keywords:{[f'({i}/{j})' for i, j in zip(keywords.split(), score.split('/'))]}  \ntarget:{target}"
+                    logger(f"eval/keyword", string, n_step)
+                    '''
                     print(f"keywords:{keywords}")
                     print(f"score:{score}")
                     print(f"target:{target}")
+                    '''
 
     num = epoch_stats.pop('num')
     epoch_stats = {k: v / num for k, v in epoch_stats.items()}
