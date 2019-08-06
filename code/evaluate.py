@@ -99,7 +99,7 @@ def evaluate_mask(args, model, loss_fn, tokenizer, dataloaders, logger, print_ou
             if print_output:
                 for i in range(B):
                     keywords = decode_tensor(tokenizer, ids[i])
-                    score = '/'.join([str(j) for j in scores[i].detach().cpu().numpy()])
+                    score = '/'.join(["%.2f" % j for j in scores[i].detach().cpu().numpy()])
                     target = decode_tensor(tokenizer, targets[i])
                     print(f"keywords:{keywords}")
                     print(f"score:{score}")
