@@ -46,7 +46,7 @@ class MaskModel(nn.Module):
                                      reduction='none').contiguous().view(L)
             loss_report.append(losses.mean())
             # L
-            probs = F.softmax(probs, dim=-1)
+            probs = F.softmax(idx_logit, dim=-1)
             probs = probs.gather(dim=1, index=idx_target.unsqueeze(1)).squeeze(1)
 
             probs = probs[1: -1]  # remove cls, sep
