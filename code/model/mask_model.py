@@ -76,4 +76,4 @@ class MaskModel(nn.Module):
             hypos = idx_logit.detach().argmax(dim=-1)
             hypos = torch.stack((hypos, idx_target), dim=-1)
 
-        return idx_logit, idx_target, None, idx_prob, None
+        return idx_logit, idx_target, None, {'idx_prob': idx_prob.mean().item()}, None

@@ -26,4 +26,4 @@ class Model(nn.Module):
             keywords, keyword_lengths, scores, reg_loss = None, None, None, None
         logits = self.decoder(sentence, lengths,
                               keywords, keyword_lengths, scores)
-        return logits, targets, reg_loss, scores, keywords
+        return logits, targets, reg_loss, {'prob': scores.mean().item()}, keywords

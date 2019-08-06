@@ -5,6 +5,7 @@ config = {
     'threshold_gap': 3,
     'model': 'mask_model',
     'use_keyword': True,
+    'keyword_ratio': 0.3,
 
     'learning_rate': 1e-5,
     'warmup_steps': 4000,

@@ -19,7 +19,7 @@ def train(args, model, loss_fn, optimizer, tokenizer, dataloaders, logger):
                                 to=args.device)
             B = batch[0].shape[0]
             targets = batch[-1]
-            logits, targets, reg_loss, scores, keywords = model(*batch)
+            logits, targets, reg_loss, added_stats, keywords = model(*batch)
             loss, stats = loss_fn(logits, targets)
 
             if reg_loss is not None:
@@ -40,9 +40,8 @@ def train(args, model, loss_fn, optimizer, tokenizer, dataloaders, logger):
             else:
                 stats = {**stats, **{
                     'nll_loss': loss.item()}}
-            if scores is not None:
-                stats = {**stats, **{
-                        'scores': scores.mean().item()}}
+            if added_stats is not None:
+                stats = {**stats, **added_stats}
             for k, v in stats.items():
                 epoch_stats[k] = epoch_stats[k] + B * v
             epoch_stats['num'] = epoch_stats['num'] + B
@@ -63,7 +62,6 @@ def train(args, model, loss_fn, optimizer, tokenizer, dataloaders, logger):
                     logger(f"train/hypo", hypo, n_step)
                     target = decode_tensor(tokenizer, targets[i])
                     logger(f"train/target", target, n_step)
-
 
         num = epoch_stats.pop('num')
         epoch_stats = {k: v / num for k, v in epoch_stats.items()}

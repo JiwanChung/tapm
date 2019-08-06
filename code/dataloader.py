@@ -35,6 +35,7 @@ class Dataset(data.Dataset):
 class DataLoader(data.DataLoader):
     def __init__(self, *args, **kwargs):
         self.name = kwargs.pop('name')
+        self.model_name = kwargs.pop('model_name')
         self.training = self.name == 'train'
         self.device = kwargs.pop('device')
         self.tokenizer = kwargs.pop('tokenizer')
@@ -43,7 +44,7 @@ class DataLoader(data.DataLoader):
         super(DataLoader, self).__init__(*args, **kwargs)
 
     def pad_collate(self, sent_li):
-        res = make_batch(self.tokenizer.model_name, self.tokenizer,
+        res = make_batch(self.model_name, self.tokenizer,
                          sent_li, random_idx=self.training)
         return res
 
@@ -52,7 +53,8 @@ def get_dataloaders(args, paths, tokenizer):
     dataloaders = {}
     for k, p in paths.items():
         dataset = Dataset(p)
-        dataloader = DataLoader(dataset, name=k, batch_size=args.batch_sizes[k],
+        dataloader = DataLoader(dataset, name=k, model_name=args.model,
+                                batch_size=args.batch_sizes[k],
                                 shuffle=True, num_workers=args.num_workers,
                                 tokenizer=tokenizer, device=args.device)
         dataloaders[k] = dataloader

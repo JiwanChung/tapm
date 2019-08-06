@@ -86,12 +86,23 @@ def get_gpt2():
 def make_batch(model_name, tokenizer, sentences, **kwargs):
     # tokenizing and numericalizing
     return {
-        'bert': make_bert_batch,
-        'gpt2': make_gpt2_batch
+        'autoencoder': make_autoencoder_batch,
+        'mask_model': make_mask_model_batch,
+        'variational_masking': make_bert_batch
     }[model_name.lower()](tokenizer, sentences, **kwargs)
 
 
-def make_bert_batch(tokenizer, sentences, random_idx=True):
+def make_bert_batch(tokenizer, sentences, **kwargs):
+    sentences = [torch.Tensor([tokenizer.cls_id,
+                               *tokenizer.encode(t),
+                               tokenizer.sep_id]) for t in sentences]
+    sentences, lengths = pad(sentences, tokenizer.pad_id)
+    targets = sentences.clone()
+
+    return sentences, lengths, targets
+
+
+def make_mask_model_batch(tokenizer, sentences, random_idx=True):
     sentences = [torch.Tensor([tokenizer.cls_id,
                                *tokenizer.encode(t),
                                tokenizer.sep_id]) for t in sentences]
@@ -140,7 +151,7 @@ def mask_words(tensors, mask_idx, random_idx=True):
         return li, None
 
 
-def make_gpt2_batch(tokenizer, sentences, **kwargs):
+def make_autoencoder_batch(tokenizer, sentences, **kwargs):
     sentences = [tokenizer.encode(t) for t in sentences]
 
     targets = [torch.Tensor([*t, tokenizer.eos_id]) for t in sentences]
