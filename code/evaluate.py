@@ -32,13 +32,15 @@ def evaluate_base(args, model, loss_fn, tokenizer, dataloaders, logger, print_ou
                 final_loss = loss
             n_step += 1
 
-            stats = {**stats, **{
-                'loss': loss.item(),
-                'final_loss': final_loss.item()
-            }}
             if reg_loss is not None:
                 stats = {**stats, **{
-                        'reg_loss': reg_loss.mean().item()}}
+                    'nll_loss': loss.item(),
+                    'reg_loss': reg_loss.mean().item(),
+                    'final_loss': final_loss.item()
+                }}
+            else:
+                stats = {**stats, **{
+                    'nll_loss': loss.item()}}
             if scores is not None:
                 stats = {**stats, **{
                         'scores': scores.mean().item()}}
@@ -51,11 +53,11 @@ def evaluate_base(args, model, loss_fn, tokenizer, dataloaders, logger, print_ou
                 for i in range(B):
                     if keywords is not None:
                         keyword = decode_tensor(tokenizer, keywords[i])
-                        logger(f"Text/train/keyword", keyword, n_step)
+                        logger(f"train/keyword", keyword, n_step)
                     hypo = decode_tensor(tokenizer, hypos[i])
-                    logger(f"Text/train/hypo", hypo, n_step)
+                    logger(f"train/hypo", hypo, n_step)
                     target = decode_tensor(tokenizer, targets[i])
-                    logger(f"Text/train/target", target, n_step)
+                    logger(f"train/target", target, n_step)
 
     num = epoch_stats.pop('num')
     epoch_stats = {k: v / num for k, v in epoch_stats.items()}
@@ -80,7 +82,7 @@ def evaluate_mask(args, model, loss_fn, tokenizer, dataloaders, logger, print_ou
 
             n_step += 1
 
-            stats = {'loss': loss.item()}
+            stats = {'nll_loss': loss.item()}
             for k, v in stats.items():
                 epoch_stats[k] = epoch_stats[k] + B * v
             epoch_stats['num'] = epoch_stats['num'] + B
@@ -88,11 +90,11 @@ def evaluate_mask(args, model, loss_fn, tokenizer, dataloaders, logger, print_ou
             if n_step == 0:
                 for i in range(B):
                     keywords = decode_tensor(tokenizer, ids[i])
-                    logger(f"Text/train/keyword", keywords, n_step)
+                    logger(f"train/keyword", keywords, n_step)
                     score = '/'.join([str(j) for j in scores[i].detach().cpu().numpy()])
-                    logger(f"Text/train/score", score, n_step)
+                    logger(f"train/score", score, n_step)
                     target = decode_tensor(tokenizer, targets[i])
-                    logger(f"Text/train/target", target, n_step)
+                    logger(f"train/target", target, n_step)
             if print_output:
                 for i in range(B):
                     keywords = decode_tensor(tokenizer, ids[i])
