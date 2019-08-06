@@ -7,6 +7,8 @@ from .decoder import Decoder
 
 
 class Model(nn.Module):
+    transformer_name = 'gpt2'
+
     def __init__(self, args, transformers, tokenizer):
         super(Model, self).__init__()
 
@@ -16,7 +18,7 @@ class Model(nn.Module):
             self.encoder = Encoder(args, transformers['encoder'], tokenizer)
         self.decoder = Decoder(args, transformers['decoder'], tokenizer)
 
-    def forward(self, sentence, lengths):
+    def forward(self, sentence, lengths, target):
         if self.use_keyword:
             keywords, keyword_lengths, scores, reg_loss = \
                 self.encoder(sentence, lengths)

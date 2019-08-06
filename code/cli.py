@@ -10,7 +10,7 @@ import numpy as np
 from config import config, debug_options, log_keys
 from utils import wait_for_key
 from train import train
-from model.model import Model
+from model import get_model
 from loss import Loss
 from optimizer import get_optimizer
 from transformers import get_transformer
@@ -37,21 +37,22 @@ class Cli:
 
         return args
 
-    def load_dataloader(self, **kwargs):
-        args = self._default_args(**kwargs)
+    def load_dataloader(self, args, model):
         data_paths = ['train', 'val', 'test']
         data_paths = {k: args[f"{k}_path"] for k in data_paths
                       if f"{k}_path" in args}
 
-        models, tokenizer = get_transformer(args.transformer_name)
+        models, tokenizer = get_transformer(model.transformer_name)
         dataloaders = get_dataloaders(args, data_paths, tokenizer)
 
-        return args, models, tokenizer, dataloaders
+        return models, tokenizer, dataloaders
 
     def train(self, **kwargs):
-        args, models, tokenizer, dataloaders = \
-            self.load_dataloader(**kwargs)
-        model = Model(args, models, tokenizer)
+        args = self._default_args(**kwargs)
+        model = get_model(args)
+        transformers, tokenizer, dataloaders = \
+            self.load_dataloader(args, model)
+        model = model(args, transformers, tokenizer)
         model.to(args.device)
         loss_fn = Loss(padding_idx=tokenizer.pad_id)
         logger = Logger(args)

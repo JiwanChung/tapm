@@ -4,6 +4,7 @@ from collections import defaultdict
 
 from tensor_utils import move_device
 from transformers import decode_tensor
+from evaluate import evaluate
 
 
 def train(args, model, loss_fn, optimizer, tokenizer, dataloaders, logger):
@@ -12,11 +13,12 @@ def train(args, model, loss_fn, optimizer, tokenizer, dataloaders, logger):
     for epoch in range(args.max_epoch):
         epoch_stats = defaultdict(float)
         model.train()
-        for sentences, lengths, targets in dataloaders['train']:
-            sentences, lengths, targets = move_device(sentences, lengths, targets,
-                                                      to=args.device)
-            B = sentences.shape[0]
-            logits, reg_loss, scores, keywords = model(sentences, lengths)
+        for batch in dataloaders['train']:
+            batch = move_device(*batch,
+                                to=args.device)
+            B = batch[0].shape[0]
+            targets = batch[-1]
+            logits, reg_loss, scores, keywords = model(*batch)
             loss, stats = loss_fn(logits, targets)
 
             if reg_loss is not None:
@@ -34,7 +36,10 @@ def train(args, model, loss_fn, optimizer, tokenizer, dataloaders, logger):
             }}
             if reg_loss is not None:
                 stats = {**stats, **{
-                'reg_loss': reg_loss.mean().item()}}
+                        'reg_loss': reg_loss.mean().item()}}
+            if scores is not None:
+                stats = {**stats, **{
+                        'scores': scores.mean().item()}}
             for k, v in stats.items():
                 epoch_stats[k] = epoch_stats[k] + B * v
             epoch_stats['num'] = epoch_stats['num'] + B
@@ -43,21 +48,22 @@ def train(args, model, loss_fn, optimizer, tokenizer, dataloaders, logger):
             stats['lr'] = optimizer[0].get_lr()
 
             for name, val in stats.items():
-                logger(f"iters/{name}", val, n_step)
+                logger(f"train/iters/{name}", val, n_step)
             if args.log_text_every > 0 and \
                     ((n_step + 1) % args.log_text_every == 0):
                 hypos = logits.argmax(dim=-1)
                 for i in range(B):
                     if keywords is not None:
                         keyword = decode_tensor(tokenizer, keywords[i])
-                        logger(f"Text/keyword", keyword, n_step)
+                        logger(f"Text/train/keyword", keyword, n_step)
                     hypo = decode_tensor(tokenizer, hypos[i])
-                    logger(f"Text/hypo", hypo, n_step)
+                    logger(f"Text/train/hypo", hypo, n_step)
                     target = decode_tensor(tokenizer, targets[i])
-                    logger(f"Text/target", target, n_step)
+                    logger(f"Text/train/target", target, n_step)
 
 
         num = epoch_stats.pop('num')
         epoch_stats = {k: v / num for k, v in epoch_stats.items()}
         for name, val in epoch_stats.items():
-            logger(f"epoch/{name}", val, n_step)
+            logger(f"train/epoch/{name}", val, n_step)
+        evaluate(args, model, loss_fn, tokenizer, dataloaders, logger)

@@ -3,7 +3,7 @@ config = {
     'keyword_threshold': 1/3,
     'transformer_pool': 'mean',
     'threshold_gap': 3,
-    'transformer_name': 'gpt2',
+    'model': 'mask_model',
     'use_keyword': True,
 
     'learning_rate': 1e-5,
@@ -28,6 +28,7 @@ debug_options = {
 }
 
 log_keys = [
+    'model',
     'reg_coeff',
     'keyword_threshold',
     'threshold_gap',
