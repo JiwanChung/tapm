@@ -56,6 +56,8 @@ def train(args, model, loss_fn, optimizer, tokenizer, dataloaders, logger):
                 for i in range(B):
                     if keywords is not None:
                         keyword = {k: decode_tensor(tokenizer, v[i])
+                                   if v[i].dtype == torch.long
+                                   else '/'.join(["%.2f" % j for j in v[i].detach().cpu().numpy()])
                                     for k, v in keywords.items()}
                         string = '\n'.join(list([f"{k}:{v}"
                                                  for k, v in keyword.items()]))
