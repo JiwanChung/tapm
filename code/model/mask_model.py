@@ -36,17 +36,18 @@ class MaskModel(nn.Module):
             target_resize = target[:logits.shape[0]]  # remove padding
             target_resize = target_resize.unsqueeze(0).expand(L, L)
             '''
+            mask_ids = torch.arange(L).long().to(logits.device)
             idx_logit = logits.gather(dim=1, index=mask_ids.contiguous().view(-1, 1, 1).expand(mask_ids.shape[0], 1, logits.shape[-1])).squeeze(1)
-            idx_target = targets.gather(dim=1, index=mask_ids.unsqueeze(-1)).squeeze(1)
-            # BC, B
+            target_resize = target[:logits.shape[0]]  # remove padding
+            idx_target = target_resize.gather(dim=0, index=mask_ids)
+            # BLC, BL
 
             losses = F.cross_entropy(idx_logit.contiguous().view(-1, C), idx_target.contiguous().view(-1),
-                                     reduction='none').contiguous().view(L, L)
+                                     reduction='none').contiguous().view(L)
             loss_report.append(losses.mean())
-            losses = losses.sum(dim=-1)
             # L
             losses = losses[1: -1]  # remove cls, sep
-            val, idx = losses.sort(dim=0, descending=False)
+            val, idx = losses.sort(dim=0, descending=True)
             idx = idx + 1  # remember cls
             idx = target[idx]
             ids.append(idx)
