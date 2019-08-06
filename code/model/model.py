@@ -18,7 +18,7 @@ class Model(nn.Module):
             self.encoder = Encoder(args, transformers['encoder'], tokenizer)
         self.decoder = Decoder(args, transformers['decoder'], tokenizer)
 
-    def forward(self, sentence, lengths, target):
+    def forward(self, sentence, lengths, targets):
         if self.use_keyword:
             keywords, keyword_lengths, scores, reg_loss = \
                 self.encoder(sentence, lengths)
@@ -26,4 +26,4 @@ class Model(nn.Module):
             keywords, keyword_lengths, scores, reg_loss = None, None, None, None
         logits = self.decoder(sentence, lengths,
                               keywords, keyword_lengths, scores)
-        return logits, reg_loss, scores, keywords
+        return logits, targets, reg_loss, scores, keywords

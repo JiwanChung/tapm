@@ -48,24 +48,24 @@ class MaskModel(nn.Module):
         loss_report = torch.Tensor(loss_report).float().to(sentences[0].device).mean()
         return loss_report, scores, ids
 
-    def forward_train(self, sentence, lengths, mask_ids, target):
+    def forward_train(self, sentence, lengths, mask_ids, targets):
         attention_mask = sentence != self.pad_id
         outputs = self.bert(sentence, attention_mask=attention_mask)
         logits = outputs[0]
 
         temp = logits.clone().detach()
         temp.requires_grad_(False)
-        with torch.no_grad():
-            # BLC -> BC
-            idx_logit = temp.gather(dim=1, index=mask_ids.contiguous().view(-1, 1, 1).expand(mask_ids.shape[0], 1, temp.shape[-1])).squeeze(1)
-            idx_target = target.gather(dim=1, index=mask_ids.unsqueeze(-1)).squeeze(1)
+        # BLC -> BC
+        idx_logit = logits.gather(dim=1, index=mask_ids.contiguous().view(-1, 1, 1).expand(mask_ids.shape[0], 1, temp.shape[-1])).squeeze(1)
+        idx_target = targets.gather(dim=1, index=mask_ids.unsqueeze(-1)).squeeze(1)
 
-            idx_prob = F.softmax(idx_logit, dim=-1)
+        with torch.no_grad():
+            idx_prob = F.softmax(idx_logit.detach(), dim=-1)
             # BC -> B
             idx_prob = idx_prob.gather(dim=1, index=idx_target.unsqueeze(-1)).squeeze(1)
 
             # BC -> B
-            hypos = idx_logit.argmax(dim=-1)
-            hypos = torch.cat((hypos, idx_target), dim=-1)
+            hypos = idx_logit.detach().argmax(dim=-1)
+            hypos = torch.stack((hypos, idx_target), dim=-1)
 
-        return logits, None, idx_prob, hypos
+        return idx_logit, idx_target, None, idx_prob, None

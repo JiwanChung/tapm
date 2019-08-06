@@ -18,7 +18,7 @@ def train(args, model, loss_fn, optimizer, tokenizer, dataloaders, logger):
                                 to=args.device)
             B = batch[0].shape[0]
             targets = batch[-1]
-            logits, reg_loss, scores, keywords = model(*batch)
+            logits, targets, reg_loss, scores, keywords = model(*batch)
             loss, stats = loss_fn(logits, targets)
 
             if reg_loss is not None:

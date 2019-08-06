@@ -168,4 +168,6 @@ def remove_pad(x, pad_id=0):
 
 
 def decode_tensor(tokenizer, x):
+    if x.dim() < 1:
+        x = x.unsqueeze(0)
     return tokenizer.decode(remove_pad(x, tokenizer.pad_id).cpu().numpy())
