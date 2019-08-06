@@ -33,6 +33,13 @@ class Cli:
         args.update(kwargs)
         args['log_keys'] = list(set([*args['log_keys'], *kwargs.keys()]))
         args = Munch(args)
+        if hasattr(args, 'train_batch_size'):
+            args.batch_sizes['train'] = args.train_batch_size
+        if hasattr(args, 'val_batch_size'):
+            args.batch_sizes['val'] = args.val_batch_size
+        if hasattr(args, 'test_batch_size'):
+            args.batch_sizes['test'] = args.test_batch_size
+
         args.update(resolve_paths(config))
         args.update(fix_seed(args))
         args.update(get_device(args))
