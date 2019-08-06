@@ -60,7 +60,7 @@ def evaluate_base(args, model, loss_fn, tokenizer, dataloaders,
                                     for k, v in keywords.items()}
                         string = '\n'.join(list([f"{k}:{v}"
                                                  for k, v in keyword.items()]))
-                        logger(f"train/keyword", string, n_step)
+                        logger(f"eval/keyword/epoch{epoch}", string, (n_step - 1) * B + i)
 
     return epoch_stats, keywords, None
 

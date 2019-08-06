@@ -48,7 +48,10 @@ class VariationalMasking(nn.Module):
         return math.sqrt(2) * erfinv(2 * keyword_ratio - 1)
 
     def gaussian_encoder(self, x):
-        return self.mean_encoder(x).squeeze(-1), self.logvar_encoder(x).squeeze(-1)
+        return self.mean_encoder(x).squeeze(-1).tanh(), \
+            (self.logvar_encoder(x).squeeze(-1).sigmoid() \
+             * (-4 * math.log(1 / self.std)))
+        # tanh, log serves to stabilize training
 
     def reparameterize(self, mean, logvar):
         if self.training:
@@ -59,10 +62,13 @@ class VariationalMasking(nn.Module):
             return mean
 
     def get_hard_mask(self):
+        '''
         if not self.training:
-            return True
+            return False
         else:
             return random.random() <= self.hard_masking_prob
+        '''
+        return True
 
     def kl_div(self, mu, logvar, masks=[]):
         logvar = logvar - 2 * math.log(self.std)
@@ -117,12 +123,13 @@ class VariationalMasking(nn.Module):
 
         # get loss for masked tokens only
         # remove cls, sep token
-        masks_cut = masks[:, 1:-1]
-        logits_cut = logits[:, 1:-1]
-        targets_cut = targets[:, 1:-1]
-        masked_logits = logits_cut.contiguous().masked_select((~masks_cut).contiguous().unsqueeze(-1))
-        masked_logits = masked_logits.contiguous().view(-1, logits_cut.shape[-1])
-        masked_targets = targets_cut.contiguous().masked_select(~masks_cut).contiguous()
+        loss_masks = ~masks
+        for mask in [cls_mask, sep_mask, attention_mask]:
+            loss_masks = mask * loss_masks
+
+        masked_logits = logits.contiguous().masked_select(loss_masks.contiguous().unsqueeze(-1))
+        masked_logits = masked_logits.contiguous().view(-1, logits.shape[-1])
+        masked_targets = targets.contiguous().masked_select(loss_masks).contiguous()
 
         return masked_logits, masked_targets, kl_loss, \
             stats, {'keywords': keywords, 'targets': targets}

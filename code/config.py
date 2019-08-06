@@ -11,7 +11,7 @@ config = {
     'learning_rate': 1e-5,
     'warmup_steps': 4000,
     'batch_sizes': {'train': 16, 'val': 16, 'test': 16},
-    'max_epoch': 10,
+    'max_epoch': 30,
 
     'train_path': '../data/ActyNetCap/train.json',
     'val_path': '../data/ActyNetCap/val_1.json',
