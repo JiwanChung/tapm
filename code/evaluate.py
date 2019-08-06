@@ -57,11 +57,11 @@ def evaluate_base(args, model, loss_fn, tokenizer, dataloaders,
                 for i in range(B):
                     if keywords is not None:
                         keyword = decode_tensor(tokenizer, keywords[i])
-                        logger(f"eval/keyword/epoch{epoch}", keyword, n_step)
+                        logger(f"eval/keyword/epoch{epoch}", keyword, (n_step - 1) * B + i)
                     hypo = decode_tensor(tokenizer, hypos[i])
-                    logger(f"eval/hypo/epoch{epoch}", hypo, n_step)
+                    logger(f"eval/hypo/epoch{epoch}", hypo, (n_step - 1) * B + i)
                     target = decode_tensor(tokenizer, targets[i])
-                    logger(f"eval/target/epoch{epoch}", target, n_step)
+                    logger(f"eval/target/epoch{epoch}", target, (n_step - 1) * B + i)
 
     return epoch_stats, keywords, target
 
@@ -91,14 +91,14 @@ def evaluate_mask(args, model, loss_fn, tokenizer, dataloaders, logger, print_ou
                     score = '/'.join(["%.2f" % j for j in scores[i].detach().cpu().numpy()])
                     target = decode_tensor(tokenizer, targets[i])
                     string = f"keywords:{[f'({i}/{j})' for i, j in zip(keywords.split(), score.split('/'))]}\ntarget:{target}"
-                    logger(f"eval/keyword/epoch{epoch}", string, n_step)
+                    logger(f"eval/keyword/epoch{epoch}", string, (n_step - 1) * B + i)
             if print_output:
                 for i in range(B):
                     keywords = decode_tensor(tokenizer, ids[i])
                     score = '/'.join(["%.2f" % j for j in scores[i].detach().cpu().numpy()])
                     target = decode_tensor(tokenizer, targets[i])
                     string = f"keywords:{[f'({i}/{j})' for i, j in zip(keywords.split(), score.split('/'))]}\ntarget:{target}"
-                    logger(f"eval/keyword/epoch{epoch}", string, n_step)
+                    logger(f"eval/keyword/epoch{epoch}", string, (n_step - 1) * B + i)
 
     model.train()
 

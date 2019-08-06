@@ -47,7 +47,9 @@ def run_tensorboard(log_path):
 
     port_num = abs(hash(log_path)) % (8800) + 1025  # above 1024, below 10000
     tb = program.TensorBoard(default.get_plugins(), get_assets_zip_provider())
-    tb.configure(argv=[None, '--logdir', str(log_path), '--port', str(port_num)])
+    tb.configure(argv=[None, '--logdir', str(log_path), '--port', str(port_num),
+                       '--samples_per_plugin', 'text=100'])
+    # samples_per_plugin keeps tensorboard from skipping texts for random steps
     url = tb.launch()
     return url
 
