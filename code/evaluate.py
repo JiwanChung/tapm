@@ -116,7 +116,7 @@ def evaluate_mask(args, model, loss_fn, tokenizer, dataloaders, logger, print_ou
     num = epoch_stats.pop('num')
     epoch_stats = {k: v / num for k, v in epoch_stats.items()}
     for name, val in epoch_stats.items():
-        logger(f"train/epoch/{name}", val, n_step)
+        logger(f"eval/epoch/{name}", val, n_step)
     model.train()
 
     return epoch_stats, keywords, target
