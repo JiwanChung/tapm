@@ -7,6 +7,7 @@ from transformers import decode_tensor
 
 
 def evaluate(args, model, loss_fn, optimizer, tokenizer, dataloaders, logger, print_output=False):
+    print("evaluating")
     return {
         'mask_model': evaluate_mask,
         'autoencoder': evaluate_base
@@ -47,17 +48,17 @@ def evaluate_base(args, model, loss_fn, tokenizer, dataloaders, logger, print_ou
             for k, v in stats.items():
                 epoch_stats[k] = epoch_stats[k] + B * v
             epoch_stats['num'] = epoch_stats['num'] + B
-            # log text for batch 0
-            if n_step == 0:
+            # log text for batch 1 ~ 5
+            if n_step <= 5:
                 hypos = logits.argmax(dim=-1)
                 for i in range(B):
                     if keywords is not None:
                         keyword = decode_tensor(tokenizer, keywords[i])
-                        logger(f"train/keyword", keyword, n_step)
+                        logger(f"eval/keyword", keyword, n_step)
                     hypo = decode_tensor(tokenizer, hypos[i])
-                    logger(f"train/hypo", hypo, n_step)
+                    logger(f"eval/hypo", hypo, n_step)
                     target = decode_tensor(tokenizer, targets[i])
-                    logger(f"train/target", target, n_step)
+                    logger(f"eval/target", target, n_step)
 
     num = epoch_stats.pop('num')
     epoch_stats = {k: v / num for k, v in epoch_stats.items()}
@@ -86,15 +87,15 @@ def evaluate_mask(args, model, loss_fn, tokenizer, dataloaders, logger, print_ou
             for k, v in stats.items():
                 epoch_stats[k] = epoch_stats[k] + B * v
             epoch_stats['num'] = epoch_stats['num'] + B
-            # log text for batch 0
-            if n_step == 0:
+            # log text for batch 1 ~ 5
+            if n_step <= 5:
                 for i in range(B):
                     keywords = decode_tensor(tokenizer, ids[i])
-                    logger(f"train/keyword", keywords, n_step)
                     score = '/'.join([str(j) for j in scores[i].detach().cpu().numpy()])
-                    logger(f"train/score", score, n_step)
                     target = decode_tensor(tokenizer, targets[i])
-                    logger(f"train/target", target, n_step)
+                    logger(f"eval/keyword", keywords, n_step)
+                    logger(f"eval/score", score, n_step)
+                    logger(f"eval/target", target, n_step)
             if print_output:
                 for i in range(B):
                     keywords = decode_tensor(tokenizer, ids[i])

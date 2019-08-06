@@ -11,6 +11,7 @@ def train(args, model, loss_fn, optimizer, tokenizer, dataloaders, logger):
     print(f"training steps: {len(dataloaders['train'])}")
     n_step = 0
     for epoch in range(args.max_epoch):
+        print(f"training {epoch}th epoch")
         epoch_stats = defaultdict(float)
         model.train()
         for batch in dataloaders['train']:

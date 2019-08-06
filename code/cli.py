@@ -80,7 +80,7 @@ class Cli:
     def evaluate(self, **kwargs):
         all_args = self.prepare(**kwargs)
 
-        stats, keywords, target = evaluate(*all_args, print_output=True)
+        stats, keywords, target = evaluate(*all_args, print_output=False)
 
         print(stats)
         print(f"key:{keywords}, target:{target}")
