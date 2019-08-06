@@ -6,15 +6,18 @@ from tensor_utils import move_device
 from transformers import decode_tensor
 
 
-def evaluate(args, model, loss_fn, optimizer, tokenizer, dataloaders, logger, print_output=False):
+def evaluate(args, model, loss_fn, optimizer, tokenizer, dataloaders,
+             logger, print_output=False, epoch=0):
     print("evaluating")
     return {
         'mask_model': evaluate_mask,
         'autoencoder': evaluate_base
-    }[args.model.lower()](args, model, loss_fn, tokenizer, dataloaders, logger, print_output)
+    }[args.model.lower()](args, model, loss_fn, tokenizer, dataloaders,
+                          logger, print_output, epoch)
 
 
-def evaluate_base(args, model, loss_fn, tokenizer, dataloaders, logger, print_output=False):
+def evaluate_base(args, model, loss_fn, tokenizer, dataloaders,
+                  logger, print_output=False, epoch=-1):
     epoch_stats = defaultdict(float)
     model.eval()
     n_step = 0
@@ -54,16 +57,16 @@ def evaluate_base(args, model, loss_fn, tokenizer, dataloaders, logger, print_ou
                 for i in range(B):
                     if keywords is not None:
                         keyword = decode_tensor(tokenizer, keywords[i])
-                        logger(f"eval/keyword", keyword, n_step)
+                        logger(f"eval/keyword/epoch{epoch}", keyword, n_step)
                     hypo = decode_tensor(tokenizer, hypos[i])
-                    logger(f"eval/hypo", hypo, n_step)
+                    logger(f"eval/hypo/epoch{epoch}", hypo, n_step)
                     target = decode_tensor(tokenizer, targets[i])
-                    logger(f"eval/target", target, n_step)
+                    logger(f"eval/target/epoch{epoch}", target, n_step)
 
     return epoch_stats, keywords, target
 
 
-def evaluate_mask(args, model, loss_fn, tokenizer, dataloaders, logger, print_output=False):
+def evaluate_mask(args, model, loss_fn, tokenizer, dataloaders, logger, print_output=False, epoch=0):
     epoch_stats = defaultdict(float)
     model.eval()
     n_step = 0
@@ -88,14 +91,14 @@ def evaluate_mask(args, model, loss_fn, tokenizer, dataloaders, logger, print_ou
                     score = '/'.join(["%.2f" % j for j in scores[i].detach().cpu().numpy()])
                     target = decode_tensor(tokenizer, targets[i])
                     string = f"keywords:{[f'({i}/{j})' for i, j in zip(keywords.split(), score.split('/'))]}\ntarget:{target}"
-                    logger(f"eval/keyword", string, n_step)
+                    logger(f"eval/keyword/epoch{epoch}", string, n_step)
             if print_output:
                 for i in range(B):
                     keywords = decode_tensor(tokenizer, ids[i])
                     score = '/'.join(["%.2f" % j for j in scores[i].detach().cpu().numpy()])
                     target = decode_tensor(tokenizer, targets[i])
                     string = f"keywords:{[f'({i}/{j})' for i, j in zip(keywords.split(), score.split('/'))]}\ntarget:{target}"
-                    logger(f"eval/keyword", string, n_step)
+                    logger(f"eval/keyword/epoch{epoch}", string, n_step)
 
     model.train()
 
