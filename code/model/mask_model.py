@@ -40,14 +40,17 @@ class MaskModel(nn.Module):
             idx_logit = logits.gather(dim=1, index=mask_ids.contiguous().view(-1, 1, 1).expand(mask_ids.shape[0], 1, logits.shape[-1])).squeeze(1)
             target_resize = target[:logits.shape[0]]  # remove padding
             idx_target = target_resize.gather(dim=0, index=mask_ids)
-            # BLC, BL
+            # LC, L
 
             losses = F.cross_entropy(idx_logit.contiguous().view(-1, C), idx_target.contiguous().view(-1),
                                      reduction='none').contiguous().view(L)
             loss_report.append(losses.mean())
             # L
-            losses = losses[1: -1]  # remove cls, sep
-            val, idx = losses.sort(dim=0, descending=True)
+            probs = F.softmax(probs, dim=-1)
+            probs = probs.gather(dim=1, index=idx_target.unsqueeze(1)).squeeze(1)
+
+            probs = probs[1: -1]  # remove cls, sep
+            val, idx = probs.sort(dim=0, descending=True)
             idx = idx + 1  # remember cls
             idx = target[idx]
             ids.append(idx)
