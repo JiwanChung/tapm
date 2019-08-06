@@ -91,7 +91,7 @@ def evaluate_mask(args, model, loss_fn, tokenizer, dataloaders, logger, print_ou
             if n_step <= 5:
                 for i in range(B):
                     keywords = decode_tensor(tokenizer, ids[i])
-                    score = '/'.join([str(j) for j in scores[i].detach().cpu().numpy()])
+                    score = '/'.join(["%.2f" % j for j in scores[i].detach().cpu().numpy()])
                     target = decode_tensor(tokenizer, targets[i])
                     logger(f"eval/keyword", keywords, n_step)
                     logger(f"eval/score", score, n_step)
