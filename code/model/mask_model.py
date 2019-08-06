@@ -50,7 +50,7 @@ class MaskModel(nn.Module):
             probs = probs.gather(dim=1, index=idx_target.unsqueeze(1)).squeeze(1)
 
             probs = probs[1: -1]  # remove cls, sep
-            val, idx = probs.sort(dim=0, descending=True)
+            val, idx = probs.sort(dim=0, descending=False)
             idx = idx + 1  # remember cls
             idx = target[idx]
             ids.append(idx)
