@@ -10,6 +10,7 @@ import numpy as np
 from config import config, debug_options, log_keys
 from utils import wait_for_key
 from train import train
+from evaluate import evaluate
 from model import get_model
 from loss import Loss
 from optimizer import get_optimizer
@@ -24,6 +25,7 @@ class Cli:
         self.debug = debug_options
 
     def _default_args(self, **kwargs):
+        torch.multiprocessing.set_sharing_strategy('file_system')  # https://github.com/pytorch/pytorch/issues/973
         args = self.defaults
         args['log_keys'] = log_keys
         if 'debug' in kwargs:
@@ -47,7 +49,7 @@ class Cli:
 
         return models, tokenizer, dataloaders
 
-    def train(self, **kwargs):
+    def prepare(self, **kwargs):
         args = self._default_args(**kwargs)
         model = get_model(args)
         transformers, tokenizer, dataloaders = \
@@ -58,17 +60,26 @@ class Cli:
         logger = Logger(args)
         optimizer = get_optimizer(args, model, dataloaders)
 
-        train(args, model, loss_fn, optimizer, tokenizer, dataloaders, logger)
+        return args, model, loss_fn, optimizer, tokenizer, dataloaders, logger
+
+    def train(self, **kwargs):
+        all_args = self.prepare(**kwargs)
+
+        train(*all_args)
 
         # hold process to keep tensorboard alive
         wait_for_key()
 
-        '''
     def evaluate(self, **kwargs):
-        args = self._default_args(**kwargs)
+        all_args = self.prepare(**kwargs)
 
-        evaluate(args)
-        '''
+        stats, keywords, target = evaluate(*all_args, print_output=True)
+
+        print(stats)
+        print(f"key:{keywords}, target:{target}")
+
+        # hold process to keep tensorboard alive
+        wait_for_key()
 
 
 def resolve_paths(config):

@@ -132,7 +132,9 @@ def mask_words(tensors, mask_idx, random_idx=True):
         li = []
         for t in tensors:
             t = t.unsqueeze(0).repeat(t.shape[0], 1)
-            t[torch.eye(t.shape[0]).to(t.device)] = mask_idx
+            eye = torch.eye(t.shape[0]).byte().to(t.device)
+            full = torch.full(t.shape, mask_idx, dtype=t.dtype).to(t.device)
+            t.masked_scatter_(mask=eye, source=full)
             li.append(t)
         # list of L*L
         return li, None
