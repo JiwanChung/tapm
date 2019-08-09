@@ -8,10 +8,11 @@ import torch
 from torch import nn
 import torch.nn.functional as F
 
+from .transformer_model import TransformerModel
 from .modules import IdentityModule
 
 
-class VariationalMasking(nn.Module):
+class VariationalMasking(TransformerModel):
     transformer_name = 'bert'
 
     def __init__(self, args, transformer, tokenizer):

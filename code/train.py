@@ -5,11 +5,14 @@ from collections import defaultdict
 from tensor_utils import move_device
 from transformers import decode_tensor
 from evaluate import evaluate
+from ckpt import save_ckpt
+from extract_keyword import extract_and_save_all
 
 
 def train(args, model, loss_fn, optimizer, tokenizer, dataloaders, logger):
     print(f"training steps: {len(dataloaders['train'])}")
     n_step = 0
+    lowest_loss = float('inf')
     for epoch in range(args.max_epoch):
         print(f"training {epoch}th epoch")
         epoch_stats = defaultdict(float)
@@ -76,3 +79,10 @@ def train(args, model, loss_fn, optimizer, tokenizer, dataloaders, logger):
         eval_stats = {k: v / num for k, v in eval_stats.items()}
         for name, val in eval_stats.items():
             logger(f"eval/epoch/{name}", val, epoch)
+
+        current_loss = eval_stats['nll_loss']
+        save_ckpt(args, epoch, current_loss, model, tokenizer)
+
+        if args.extract_keyword and current_loss < lowest_loss:
+            extract_and_save_all(args, model, tokenizer, dataloaders)
+        lowest_loss = min(lowest_loss, current_loss)

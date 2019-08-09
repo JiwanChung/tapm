@@ -2,15 +2,17 @@ import torch
 from torch import nn
 import torch.nn.functional as F
 
+from .transformer_model import TransformerModel
 
-class MaskModel(nn.Module):
+
+class MaskModel(TransformerModel):
     transformer_name = 'bert'
 
     def __init__(self, args, transformer, tokenizer):
         super(MaskModel, self).__init__()
 
-        self.bert = transformer
-        self.bert.train()
+        self.transformer = transformer
+        self.transformer.train()
 
         self.pad_id = tokenizer.pad_id
 
@@ -27,7 +29,7 @@ class MaskModel(nn.Module):
         ids = []
         for sentence, target in zip(sentences, targets):
             attention_mask = sentence != self.pad_id
-            outputs = self.bert(sentence, attention_mask=attention_mask)
+            outputs = self.transformer(sentence, attention_mask=attention_mask)
             logits = outputs[0]
             # L*L*C
             L = logits.shape[0]
@@ -60,7 +62,7 @@ class MaskModel(nn.Module):
 
     def forward_train(self, sentence, lengths, mask_ids, targets):
         attention_mask = sentence != self.pad_id
-        outputs = self.bert(sentence, attention_mask=attention_mask)
+        outputs = self.transformer(sentence, attention_mask=attention_mask)
         logits = outputs[0]
 
         # BLC -> BC

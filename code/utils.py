@@ -7,6 +7,16 @@ import torch
 from torch.nn.utils import clip_grad_norm_
 
 
+def cut_sample(data, n=100):
+    if isinstance(data, list):
+        return data[:n]
+    elif isinstance(data, dict):
+        return {k: v for i, (k, v) in enumerate(data.items())
+                if i < n}
+    else:
+        assert False, f'cutting not implemented for type {data.type}'
+
+
 def get_dirname_from_args(args):
     dirname = ''
     for key in sorted(args.log_keys):

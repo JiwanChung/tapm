@@ -11,7 +11,9 @@ from config import config, debug_options, log_keys
 from utils import wait_for_key
 from train import train
 from evaluate import evaluate
+from extract_keyword import extract_and_save_all
 from model import get_model
+from ckpt import get_model_ckpt
 from loss import Loss
 from optimizer import get_optimizer
 from transformers import get_transformer
@@ -46,23 +48,18 @@ class Cli:
 
         return args
 
-    def load_dataloader(self, args, model):
-        data_paths = ['train', 'val', 'test']
-        data_paths = {k: args[f"{k}_path"] for k in data_paths
-                      if f"{k}_path" in args}
+    def load_dataloader(self, args, tokenizer):
+        dataloaders = get_dataloaders(args, args.data_path, tokenizer)
 
-        models, tokenizer = get_transformer(model.transformer_name)
-        dataloaders = get_dataloaders(args, data_paths, tokenizer)
-
-        return models, tokenizer, dataloaders
+        return dataloaders
 
     def prepare(self, **kwargs):
         args = self._default_args(**kwargs)
-        model = get_model(args)
-        transformers, tokenizer, dataloaders = \
-            self.load_dataloader(args, model)
-        model = model(args, transformers, tokenizer)
+        args, model, tokenizer, ckpt = get_model_ckpt(args)
+        if not ckpt:
+            model, tokenizer = get_model(args)
         model.to(args.device)
+        dataloaders = self.load_dataloader(args, tokenizer)
         loss_fn = Loss(padding_idx=tokenizer.pad_id)
         logger = Logger(args)
         optimizer = get_optimizer(args, model, dataloaders)
@@ -88,15 +85,25 @@ class Cli:
         # hold process to keep tensorboard alive
         wait_for_key()
 
+    def extract(self, **kwargs):
+        args, model, _, _, tokenizer, \
+            dataloaders, _ = self.prepare(**kwargs)
+        for dataloader in dataloaders.values():
+            dataloader.training = False
+
+        extract_and_save_all(args, model, tokenizer, dataloaders)
+
 
 def resolve_paths(config):
     paths = [k for k in config.keys() if k.endswith('_path')]
     res = {}
     res['root'] = Path('../').resolve()
     for path in paths:
-        res[path] = Path(config[path])
-        # resolve root
-        res[path] = res['root'] / res[path]
+        if config[path] is not None:
+            res[path] = Path(config[path])
+            # resolve root
+            res[path] = res['root'] / res[path]
+        '''
         if config['sample']:
             p = res[path].parts
             idx = [i for i, v in enumerate(p) if v == 'data']
@@ -105,6 +112,11 @@ def resolve_paths(config):
                 parts = [*p[:idx+1], 'sample', *p[idx+1:]]
                 p = Path('/'.join(parts))
                 res[path] = p
+                '''
+    res['data_path'] = {}
+    for key in ['train', 'val', 'test']:
+        if f"{key}_path" in res:
+            res['data_path'][key] = res[f"{key}_path"]
 
     return res
 

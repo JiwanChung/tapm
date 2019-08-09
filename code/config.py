@@ -7,6 +7,8 @@ config = {
     'use_keyword': True,
     'keyword_ratio': 0.4,
     'latent_std': 1,
+    'extract_keyword': False,
+    'extraction_threshold': 0.05,
 
     'learning_rate': 1e-5,
     'warmup_steps': 4000,
@@ -15,12 +17,15 @@ config = {
 
     'train_path': 'data/LSMDC/task1/LSMDC16_annos_training_someone.csv',
     'val_path': 'data/LSMDC/task1/LSMDC16_annos_val_someone.csv',
+    'test_path': None,
     'num_workers': 32,
 
     'sample': False,
     'log_cmd': False,
-    'log_path': '../log',
+    'log_path': 'log',
     'log_text_every': 2000,
+    'ckpt_path': 'ckpt',
+    'ckpt_name': None,
     'hostname': 'snu.vision',
 }
 

@@ -178,7 +178,11 @@ def remove_pad(x, pad_id=0):
     return x[:(x != pad_id).sum(-1)]
 
 
-def decode_tensor(tokenizer, x):
+def decode_tensor(tokenizer, x, split_tokens=False):
     if x.dim() < 1:
         x = x.unsqueeze(0)
-    return tokenizer.decode(remove_pad(x, tokenizer.pad_id).cpu().numpy())
+    x = remove_pad(x, tokenizer.pad_id).cpu().numpy()
+    if split_tokens:
+        return tokenizer.convert_ids_to_tokens(x)
+    else:
+        return tokenizer.decode(x)
