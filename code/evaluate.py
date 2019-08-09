@@ -13,7 +13,8 @@ def evaluate(args, model, loss_fn, optimizer, tokenizer, dataloaders,
     return {
         'mask_model': evaluate_mask,
         'autoencoder': evaluate_base,
-        'variational_masking': evaluate_base
+        'variational_masking': evaluate_base,
+        'lstm_keyword_lm': evaluate_base
     }[args.model.lower()](args, model, loss_fn, tokenizer, dataloaders,
                           logger, print_output, epoch)
 
