@@ -1,6 +1,7 @@
 import json
 import torch
 import numpy as np
+from tqdm import tqdm
 
 from collections import defaultdict
 
@@ -15,7 +16,7 @@ def extract_keyword(args, model, tokenizer, dataloader):
     res = {}
     ratios = []
     with torch.no_grad():
-        for batch in dataloader:
+        for batch in tqdm(dataloader, total=len(dataloader)):
             data_ids = batch[0]
             batch = batch[1:]
             batch = move_device(*batch, to=args.device)
@@ -24,9 +25,10 @@ def extract_keyword(args, model, tokenizer, dataloader):
             loss, scores, ids = model(*batch)
 
             for i in range(B):
+                min_words = min(args.extraction_min_words, ids[i].shape[0])
                 keywords = [(key, score)
                             for j, (key, score) in enumerate(zip(ids[i], scores[i]))
-                            if score < threshold or j < args.extraction_min_words]
+                            if score < threshold or j < min_words]
                 keywords, score = zip(*keywords)
                 keywords, score = torch.Tensor(list(keywords)).to(ids[i].device), \
                     torch.Tensor(list(score)).to(ids[i].device).cpu().numpy().tolist()

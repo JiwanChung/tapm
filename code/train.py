@@ -1,4 +1,5 @@
 import torch
+from tqdm import tqdm
 
 from collections import defaultdict
 
@@ -10,14 +11,15 @@ from extract_keyword import extract_and_save_all
 
 
 def train(args, model, loss_fn, optimizer, tokenizer, dataloaders, logger):
-    print(f"training steps: {len(dataloaders['train'])}")
+    dataloader = dataloaders['train']
+    print(f"training steps: {len(dataloader)}")
     n_step = 0
     lowest_loss = float('inf')
     for epoch in range(args.max_epoch):
         print(f"training {epoch}th epoch")
         epoch_stats = defaultdict(float)
         model.train()
-        for batch in dataloaders['train']:
+        for batch in tqdm(dataloader, total=len(dataloader)):
             optimizer[0].zero_grad()
             ids = batch[0]
             batch = batch[1:]

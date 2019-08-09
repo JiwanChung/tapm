@@ -1,4 +1,5 @@
 import torch
+from tqdm import tqdm
 
 from collections import defaultdict
 
@@ -22,8 +23,9 @@ def evaluate_base(args, model, loss_fn, tokenizer, dataloaders,
     epoch_stats = defaultdict(float)
     model.eval()
     n_step = 0
+    dataloader = dataloaders['val']
     with torch.no_grad():
-        for batch in dataloaders['val']:
+        for batch in tqdm(dataloader, total=len(dataloader)):
             ids = batch[0]
             batch = batch[1:]
             batch = move_device(*batch,
@@ -72,8 +74,9 @@ def evaluate_mask(args, model, loss_fn, tokenizer, dataloaders, logger, print_ou
     epoch_stats = defaultdict(float)
     model.eval()
     n_step = 0
+    dataloader = dataloaders['val']
     with torch.no_grad():
-        for batch in dataloaders['val']:
+        for batch in tqdm(dataloader, total=len(dataloader)):
             batch = move_device(*batch,
                                 to=args.device)
             B = batch[0].shape[0] if torch.is_tensor(batch) else len(batch[0])
