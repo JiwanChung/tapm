@@ -8,6 +8,8 @@ import torch
 from torch import nn
 import torch.nn.functional as F
 
+from data.batcher import make_bert_batch
+
 from .transformer_model import TransformerModel
 from .modules import IdentityModule
 
@@ -43,6 +45,10 @@ class VariationalMasking(TransformerModel):
         bert_dim = self.encoder.bert.config.hidden_size
         self.mean_encoder = nn.Linear(bert_dim, 1)
         self.logvar_encoder = nn.Linear(bert_dim, 1)
+
+    @staticmethod
+    def make_batch(*args, **kwargs):
+        return make_bert_batch(*args, **kwargs)
 
     @staticmethod
     def get_mean(keyword_ratio):

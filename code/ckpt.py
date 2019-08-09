@@ -36,7 +36,7 @@ def get_model_ckpt(args):
     ckpt_available = args.ckpt_name is not None
     if ckpt_available:
         ckpt_paths = sorted(args.ckpt_path.glob(f'{args.ckpt_name}*'))
-        assert len(ckpt_paths) > 0, f"no ckpt candidate for {ckpt_path}"
+        assert len(ckpt_paths) > 0, f"no ckpt candidate for {args.ckpt_path / args.ckpt_name}"
         ckpt_path = ckpt_paths[-1]  # monkey patch for choosing the best ckpt
         print(f"loading from {ckpt_path}")
         dt = torch.load(ckpt_path)

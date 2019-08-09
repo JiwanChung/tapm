@@ -22,9 +22,9 @@ config = {
 
     'sample': False,
     'log_cmd': False,
-    'log_path': 'log',
+    'log_path': 'data/log',
     'log_text_every': 2000,
-    'ckpt_path': 'ckpt',
+    'ckpt_path': 'data/ckpt',
     'ckpt_name': None,
     'hostname': 'snu.vision',
 }

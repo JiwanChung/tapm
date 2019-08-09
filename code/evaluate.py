@@ -3,7 +3,7 @@ import torch
 from collections import defaultdict
 
 from tensor_utils import move_device
-from transformers import decode_tensor
+from data.batcher import decode_tensor
 
 
 def evaluate(args, model, loss_fn, optimizer, tokenizer, dataloaders,
@@ -24,6 +24,8 @@ def evaluate_base(args, model, loss_fn, tokenizer, dataloaders,
     n_step = 0
     with torch.no_grad():
         for batch in dataloaders['val']:
+            ids = batch[0]
+            batch = batch[1:]
             batch = move_device(*batch,
                                 to=args.device)
             B = batch[0].shape[0]

@@ -3,7 +3,7 @@ import torch
 from collections import defaultdict
 
 from tensor_utils import move_device
-from transformers import decode_tensor
+from data.batcher import decode_tensor
 from evaluate import evaluate
 from ckpt import save_ckpt
 from extract_keyword import extract_and_save_all
@@ -19,6 +19,8 @@ def train(args, model, loss_fn, optimizer, tokenizer, dataloaders, logger):
         model.train()
         for batch in dataloaders['train']:
             optimizer[0].zero_grad()
+            ids = batch[0]
+            batch = batch[1:]
             batch = move_device(*batch,
                                 to=args.device)
             B = batch[0].shape[0]

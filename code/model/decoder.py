@@ -2,7 +2,7 @@ import torch
 from torch import nn
 import torch.nn.functional as F
 
-from transformers import remove_pad, pad
+from data.batcher import remove_pad, pad
 
 
 class Decoder(nn.Module):

@@ -48,18 +48,13 @@ class Cli:
 
         return args
 
-    def load_dataloader(self, args, tokenizer):
-        dataloaders = get_dataloaders(args, args.data_path, tokenizer)
-
-        return dataloaders
-
     def prepare(self, **kwargs):
         args = self._default_args(**kwargs)
         args, model, tokenizer, ckpt = get_model_ckpt(args)
         if not ckpt:
             model, tokenizer = get_model(args)
         model.to(args.device)
-        dataloaders = self.load_dataloader(args, tokenizer)
+        dataloaders = get_dataloaders(args, args.data_path, model.make_batch, tokenizer)
         loss_fn = Loss(padding_idx=tokenizer.pad_id)
         logger = Logger(args)
         optimizer = get_optimizer(args, model, dataloaders)

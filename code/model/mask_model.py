@@ -2,6 +2,8 @@ import torch
 from torch import nn
 import torch.nn.functional as F
 
+from data.batcher import make_mask_model_batch
+
 from .transformer_model import TransformerModel
 
 
@@ -15,6 +17,9 @@ class MaskModel(TransformerModel):
         self.transformer.train()
 
         self.pad_id = tokenizer.pad_id
+
+    def make_batch(self, *args, **kwargs):
+        return make_mask_model_batch(*args, random_idx=self.training, **kwargs)
 
     def forward(self, sentence, lengths, mask_ids, target):
         if self.training:
