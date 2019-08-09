@@ -20,8 +20,11 @@ class Loss(nn.CrossEntropyLoss):
     def forward(self, hypo, tgt):
         hypo = hypo.contiguous()
         tgt = tgt.contiguous()
-        loss = super().forward(hypo.view(-1, hypo.shape[-1]),
-                               tgt.view(-1))
+        if hypo.nelement() == 0 or tgt.nelement() == 0:  # failsafe for empty tensor
+            loss = None
+        else:
+            loss = super().forward(hypo.view(-1, hypo.shape[-1]),
+                                tgt.view(-1))
         return loss, {}
 
 

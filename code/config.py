@@ -5,7 +5,7 @@ config = {
     'threshold_gap': 3,
     'model': 'mask_model',
     'use_keyword': True,
-    'keyword_ratio': 0.3,
+    'keyword_ratio': 0.4,
     'latent_std': 1,
 
     'learning_rate': 1e-5,
@@ -13,8 +13,8 @@ config = {
     'batch_sizes': {'train': 16, 'val': 16, 'test': 16},
     'max_epoch': 30,
 
-    'train_path': '../data/ActyNetCap/train.json',
-    'val_path': '../data/ActyNetCap/val_1.json',
+    'train_path': 'data/LSMDC/task1/LSMDC16_annos_training_someone.csv',
+    'val_path': 'data/LSMDC/task1/LSMDC16_annos_val_someone.csv',
     'num_workers': 32,
 
     'sample': False,

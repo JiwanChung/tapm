@@ -31,36 +31,37 @@ def evaluate_base(args, model, loss_fn, tokenizer, dataloaders,
             logits, targets, reg_loss, added_stats, keywords = model(*batch)
             loss, stats = loss_fn(logits, targets)
 
-            if reg_loss is not None:
-                final_loss = loss + reg_loss.sum() * args.reg_coeff
-            else:
-                final_loss = loss
-            n_step += 1
+            if loss is not None:
+                if reg_loss is not None:
+                    final_loss = loss + reg_loss.sum() * args.reg_coeff
+                else:
+                    final_loss = loss
+                n_step += 1
 
-            if reg_loss is not None:
-                stats = {**stats, **{
-                    'nll_loss': loss.item(),
-                    'reg_loss': reg_loss.mean().item() * args.reg_coeff,
-                    'final_loss': final_loss.item()
-                }}
-            else:
-                stats = {**stats, **{
-                    'nll_loss': loss.item()}}
-            if added_stats is not None:
-                stats = {**stats, **added_stats}
-            for k, v in stats.items():
-                epoch_stats[k] = epoch_stats[k] + B * v
-            epoch_stats['num'] = epoch_stats['num'] + B
-            # log text for batch 1 ~ 5
-            if n_step <= 5:
-                hypos = logits.argmax(dim=-1)
-                for i in range(B):
-                    if keywords is not None:
-                        keyword = {k: decode_tensor(tokenizer, v[i])
-                                    for k, v in keywords.items()}
-                        string = '\n'.join(list([f"{k}:{v}"
-                                                 for k, v in keyword.items()]))
-                        logger(f"eval/keyword/epoch{epoch}", string, (n_step - 1) * B + i)
+                if reg_loss is not None:
+                    stats = {**stats, **{
+                        'nll_loss': loss.item(),
+                        'reg_loss': reg_loss.mean().item() * args.reg_coeff,
+                        'final_loss': final_loss.item()
+                    }}
+                else:
+                    stats = {**stats, **{
+                        'nll_loss': loss.item()}}
+                if added_stats is not None:
+                    stats = {**stats, **added_stats}
+                for k, v in stats.items():
+                    epoch_stats[k] = epoch_stats[k] + B * v
+                epoch_stats['num'] = epoch_stats['num'] + B
+                # log text for batch 1 ~ 5
+                if n_step <= 5:
+                    hypos = logits.argmax(dim=-1)
+                    for i in range(B):
+                        if keywords is not None:
+                            keyword = {k: decode_tensor(tokenizer, v[i])
+                                        for k, v in keywords.items()}
+                            string = '\n'.join(list([f"{k}:{v}"
+                                                    for k, v in keyword.items()]))
+                            logger(f"eval/keyword/epoch{epoch}", string, (n_step - 1) * B + i)
 
     return epoch_stats, keywords, None
 

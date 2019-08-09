@@ -15,7 +15,7 @@ from model import get_model
 from loss import Loss
 from optimizer import get_optimizer
 from transformers import get_transformer
-from dataloader import get_dataloaders
+from data.dataloader import get_dataloaders
 from logger import Logger
 
 
@@ -92,8 +92,11 @@ class Cli:
 def resolve_paths(config):
     paths = [k for k in config.keys() if k.endswith('_path')]
     res = {}
+    res['root'] = Path('../').resolve()
     for path in paths:
         res[path] = Path(config[path])
+        # resolve root
+        res[path] = res['root'] / res[path]
         if config['sample']:
             p = res[path].parts
             idx = [i for i, v in enumerate(p) if v == 'data']

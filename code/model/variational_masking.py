@@ -18,8 +18,10 @@ class VariationalMasking(nn.Module):
         super(VariationalMasking, self).__init__()
 
         self.keyword_ratio = args.get('keyword_ratio', 1 / 2)
+        self.threshold = 1 - self.keyword_ratio
         self.hard_masking_prob = args.get('hard_masking_prob', 1 / 2)
-        self.mean = self.get_mean(self.keyword_ratio)
+        # self.mean = self.get_mean(self.keyword_ratio)
+        self.mean = 0  # fix mean
         self.std = args.get('latent_std', 1)
 
         self.cls_id = tokenizer.cls_id
@@ -48,10 +50,14 @@ class VariationalMasking(nn.Module):
         return math.sqrt(2) * erfinv(2 * keyword_ratio - 1)
 
     def gaussian_encoder(self, x):
+        '''
         return self.mean_encoder(x).squeeze(-1).tanh(), \
             (self.logvar_encoder(x).squeeze(-1).sigmoid() \
              * (-4 * math.log(1 / self.std)))
         # tanh, log serves to stabilize training
+        '''
+        return self.mean_encoder(x).squeeze(-1), \
+            self.logvar_encoder(x).squeeze(-1)
 
     def reparameterize(self, mean, logvar):
         if self.training:
@@ -62,20 +68,16 @@ class VariationalMasking(nn.Module):
             return mean
 
     def get_hard_mask(self):
-        '''
         if not self.training:
             return False
         else:
             return random.random() <= self.hard_masking_prob
-        '''
-        return True
 
-    def kl_div(self, mu, logvar, masks=[]):
+    def kl_div(self, mu, logvar, all_mask):
+        # mu = mu.mean()  # match moment only
         logvar = logvar - 2 * math.log(self.std)
         kl = -0.5 * (1 + logvar - (mu - self.mean).pow(2) - logvar.exp())
-        all_mask = masks[0]
-        for mask in masks:
-            all_mask = mask * all_mask
+
         kl = kl.contiguous().masked_select(all_mask)
         return kl.mean()
 
@@ -83,29 +85,36 @@ class VariationalMasking(nn.Module):
         cls_mask = sentence != self.cls_id
         sep_mask = sentence != self.sep_id
         attention_mask = sentence != self.pad_id
+        masks = [cls_mask, sep_mask, attention_mask]
+        all_mask = masks[0]
+        for mask in masks:
+            all_mask = mask * all_mask
         outputs = self.encoder.bert(sentence, attention_mask=attention_mask)
         # ignore lm head
         a = outputs[0]
         mean, logvar = self.gaussian_encoder(a)
         z = self.reparameterize(mean, logvar)
         z = torch.sigmoid(z)
-        m = z - 1 / 2  # mean to 0
+        m = 10 * (z - 1 / 2)  # scale to 0 ~ 1
+        mean_masks = (10 * (mean.sigmoid() - 1 / 2) > self.threshold)
         if self.get_hard_mask():
-            m = F.relu(m)
-        m[:, 0] = 0  # remove cls token
-        m = m * sep_mask.float()  # remove sep token
-        m = m * attention_mask.float()  # remove pad token
-        masks = (m > 0)  # true for none-masked tokens
-        keyword_ratio = masks.float().mean().item()
+            m = F.relu(m - self.threshold) + self.threshold
+            masks = (m > 0)  # true for none-masked tokens
+        else:
+            masks = (m > self.threshold)  # true for none-masked tokens
+
+        m = m * all_mask.float()  # remove sep token
+        keyword_ratio = masks.masked_select(all_mask).float().mean().item()
+        mean_keyword_ratio = mean_masks.masked_select(all_mask).float().mean().item()
         x = m.unsqueeze(-1) * a
         outputs = self.decoder(x, attention_mask=attention_mask)
         logits = outputs[0]
 
-        kl_loss = self.kl_div(mean, logvar, [attention_mask, sep_mask, cls_mask])
+        kl_loss = self.kl_div(mean, logvar, all_mask)
 
         stats = {
             'keyword_ratio': keyword_ratio,
-            'gt_mu': self.mean,
+            'mean_keyword_ratio': mean_keyword_ratio,
             'mu': mean.mean().item(),
             'std': logvar.exp().sqrt().mean().item(),
             'kl_loss': kl_loss.item(),
@@ -113,6 +122,7 @@ class VariationalMasking(nn.Module):
 
         keywords = []
         scores = []
+        masks = masks * all_mask  # ditch cls, sep, pad
         keywords_unsorted = [targets[i][masks[i]] for i in range(targets.shape[0])]
         scores_unsorted = [m[i][masks[i]] for i in range(targets.shape[0])]
         for keyword, score in zip(keywords_unsorted, scores_unsorted):
@@ -130,6 +140,9 @@ class VariationalMasking(nn.Module):
         masked_logits = logits.contiguous().masked_select(loss_masks.contiguous().unsqueeze(-1))
         masked_logits = masked_logits.contiguous().view(-1, logits.shape[-1])
         masked_targets = targets.contiguous().masked_select(loss_masks).contiguous()
+
+        stats = {**stats,
+                 'loss_words': masked_targets.nelement()}
 
         return masked_logits, masked_targets, kl_loss, \
             stats, {'keywords': keywords, 'targets': targets}
