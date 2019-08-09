@@ -23,7 +23,7 @@ def train(args, model, loss_fn, optimizer, tokenizer, dataloaders, logger):
             batch = batch[1:]
             batch = move_device(*batch,
                                 to=args.device)
-            B = batch[0].shape[0]
+            B = batch[0].shape[0] if torch.is_tensor(batch[0]) else len(batch[0])
             targets = batch[-1]
             logits, targets, reg_loss, added_stats, keywords = model(*batch)
             loss, stats = loss_fn(logits, targets)

@@ -18,14 +18,15 @@ def extract_keyword(args, model, tokenizer, dataloader):
         for batch in dataloader:
             data_ids = batch[0]
             batch = batch[1:]
-            batch = move_device(*batch,
-                                to=args.device)
-            B = batch[0].shape[0] if torch.is_tensor(batch) else len(batch[0])
+            batch = move_device(*batch, to=args.device)
+            B = batch[0].shape[0] if torch.is_tensor(batch[0]) else len(batch[0])
             targets = batch[-1]
             loss, scores, ids = model(*batch)
 
             for i in range(B):
-                keywords = [(key, score) for key, score in zip(ids[i], scores[i]) if score < threshold]
+                keywords = [(key, score)
+                            for j, (key, score) in enumerate(zip(ids[i], scores[i]))
+                            if score < threshold or j < args.extraction_min_words]
                 keywords, score = zip(*keywords)
                 keywords, score = torch.Tensor(list(keywords)).to(ids[i].device), \
                     torch.Tensor(list(score)).to(ids[i].device).cpu().numpy().tolist()
