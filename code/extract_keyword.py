@@ -6,7 +6,7 @@ from tqdm import tqdm
 from collections import defaultdict
 
 from tensor_utils import move_device
-from utils import get_dirname_from_args
+from utils import get_dirname_from_args, get_keyword_path
 from data.batcher import decode_tensor, remove_pad
 
 
@@ -49,15 +49,13 @@ def extract_and_save(key, args, model, tokenizer, dataloaders):
     path = None
     if key in args.data_path:
         print(f"extracting keyword for {key}")
-        path = args.data_path[key].parent / \
-            f'keywords_{get_dirname_from_args(args)}'
-        path.mkdir(parents=True, exist_ok=True)
-        path = path / args.data_path[key].name
+
         res, ratios = extract_keyword(args, model, tokenizer, dataloaders[key])
         ratio_percentiles = [10, 20, 50, 80, 90]
         ratio_percentiles = {i: np.percentile(ratios, i) for i in ratio_percentiles}
         print(f"keyword ratio percentiles: {ratio_percentiles}")
         print("saving keyword")
+        path = get_keyword_path(args.data_path, key, args=args)
         with open(path, 'w') as f:
             json.dump(res, f, indent=4)
 

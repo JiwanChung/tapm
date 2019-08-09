@@ -8,7 +8,7 @@ import torch
 import numpy as np
 
 from config import config, debug_options, log_keys
-from utils import wait_for_key
+from utils import wait_for_key, add_keyword_paths
 from train import train
 from evaluate import evaluate
 from extract_keyword import extract_and_save_all
@@ -54,6 +54,8 @@ class Cli:
         if not ckpt:
             model, tokenizer = get_model(args)
         model.to(args.device)
+        if 'keyword_dir' in args and args.keyword_dir is not None:
+            args.data_path = add_keyword_paths(args.data_path, args.keyword_dir)
         dataloaders = get_dataloaders(args, args.data_path, model.make_batch, tokenizer)
         loss_fn = Loss(padding_idx=tokenizer.pad_id)
         logger = Logger(args)
@@ -112,6 +114,7 @@ def resolve_paths(config):
     for key in ['train', 'val', 'test']:
         if f"{key}_path" in res:
             res['data_path'][key] = res[f"{key}_path"]
+            del res[f"{key}_path"]  # use data_path
 
     return res
 

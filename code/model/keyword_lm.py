@@ -29,7 +29,7 @@ class LSTMKeywordLM(TransformerModel):
         return make_keyword_batch(*args, **kwargs, concat=False)
 
     def out(self, x):
-        return torch.matmul(x, self.wte.weight)
+        return torch.matmul(x, self.wte.weight.t())
 
     def forward(self, sentences, lengths, targets, keywords):
         k = self.wte(keywords)

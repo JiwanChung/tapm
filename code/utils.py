@@ -7,6 +7,43 @@ import torch
 from torch.nn.utils import clip_grad_norm_
 
 
+def add_keyword_paths(data_path, keyword_dir):
+    keyword_dir = resolve_keyword_dir(keyword_dir, list(data_path.values())[0])
+    for key, path in data_path.items():
+        data_path[key] = get_keyword_path(data_path, key, keyword_dir)
+    return data_path
+
+
+def resolve_keyword_dir(keyword_dir, path):
+    candidates = list(path.parent.glob(f'{keyword_dir}*'))
+    if len(candidates) == 1:
+        return candidates[0]
+    elif len(candidates) > 1:
+        x = candidates[0]
+        print(f"choosing keyword path {x}")
+        return x
+    else:
+        assert len(candidates) > 0, \
+            f"no candidate for keyword dir: {keyword_dir}"
+
+
+def get_keyword_path(data_path, key, dir_name=None, args=None):
+    if dir_name is None:
+        dir_name = f'keywords_{get_dirname_from_args(args)}'
+    path = data_path[key].parent / dir_name
+    path.mkdir(parents=True, exist_ok=True)
+    path = path / f"{data_path[key].name}.json"
+    return path
+
+
+def jsonl_to_json(x):
+    keys = x[0].keys()
+    res = {}
+    for key in keys:
+        res[key] = [i[key] for i in x]
+    return res
+
+
 def cut_sample(data, n=100):
     if isinstance(data, list):
         return data[:n]
