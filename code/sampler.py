@@ -23,7 +23,7 @@ class Sampler(nn.Module):
         h = h_0
         res = torch.full((keywords.shape[0], self.max_target_len), self.model.tokenizer.pad_id).long().to(keywords.device)
         eos_all = torch.zeros(keywords.shape[0]).byte().to(keywords.device)
-        res[:, 0] = s
+        res[:, 0] = s.unsqueeze(-1)
         for i in range(self.max_target_len - 1):
             s = self.model.wte(s)
             logits, h = self.model.decode(s, h)

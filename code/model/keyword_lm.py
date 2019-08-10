@@ -39,6 +39,8 @@ class LSTMKeywordLM(TransformerModel):
         s = self.wte(sentences)
 
         logits, _ = self.decode(s, h)
+        if self.training:
+            keywords = None  # monkey-patch... refers to train.py and evaluate.py
         return logits, targets, None, None, keywords
 
     def encode(self, keywords):
