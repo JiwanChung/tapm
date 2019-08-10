@@ -12,9 +12,9 @@ config = {
     'extraction_min_words': 2,
     'eval_generate': True,
 
-    'max_target_len': 70,
+    'max_target_len': 30,
     'sampling_method': 'greedy',
-    'sampling_k': 10,
+    'sampling_k': 8,
     'sampling_p': 0.9,
 
     'learning_rate': 1e-5,
