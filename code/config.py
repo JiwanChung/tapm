@@ -10,7 +10,8 @@ config = {
     'extract_keyword': False,
     'extraction_threshold': 0.2,
     'extraction_min_words': 2,
-    'use_keyword': True,
+    'eval_generate': True,
+    'max_target_len': 30,
 
     'learning_rate': 1e-5,
     'warmup_steps': 4000,

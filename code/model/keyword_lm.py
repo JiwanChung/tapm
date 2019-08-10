@@ -17,6 +17,8 @@ class LSTMKeywordLM(TransformerModel):
         self.num_layers = 2
         self.use_keyword = args.use_keyword
 
+        self.tokenizer = tokenizer
+
         self.wte = nn.Embedding(self.V, self.dim)
         self.encoder = nn.GRU(self.dim, self.dim, self.num_layers,
                               bidirectional=False,
@@ -33,12 +35,21 @@ class LSTMKeywordLM(TransformerModel):
         return torch.matmul(x, self.wte.weight.t())
 
     def forward(self, sentences, lengths, targets, keywords):
+        h = self.encode(keywords)
         s = self.wte(sentences)
+
+        logits, _ = self.decode(s, h)
+        return logits, targets, None, None, keywords
+
+    def encode(self, keywords):
         h_k = None
         if self.use_keyword:
             k = self.wte(keywords)
             _, h_k = self.encoder(k)
-        o, _ = self.decoder(s, h_k)
+        return h_k
+
+    def decode(self, s, h):
+        o, h = self.decoder(s, h)
         o = self.out(o)
 
-        return o, targets, None, None, None
+        return o, h

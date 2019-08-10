@@ -5,6 +5,7 @@ from collections import defaultdict
 
 from tensor_utils import move_device
 from data.batcher import decode_tensor
+from sampler import Sampler
 
 
 def evaluate(args, model, loss_fn, optimizer, tokenizer, dataloaders,
@@ -36,6 +37,7 @@ def evaluate_base(args, model, loss_fn, tokenizer, dataloaders,
             logits, targets, reg_loss, added_stats, keywords = model(*batch)
             loss, stats = loss_fn(logits, targets)
 
+
             if loss is not None:
                 if reg_loss is not None:
                     final_loss = loss + reg_loss.sum() * args.reg_coeff
@@ -60,12 +62,15 @@ def evaluate_base(args, model, loss_fn, tokenizer, dataloaders,
                 # log text for batch 1 ~ 5
                 if n_step <= 5:
                     hypos = logits.argmax(dim=-1)
+                    if args.eval_generate:
+                        sampler = Sampler(args, model)
+                        hypos = sampler(keywords)
+
                     for i in range(B):
                         if keywords is not None:
-                            keyword = {k: decode_tensor(tokenizer, v[i])
-                                        for k, v in keywords.items()}
-                            string = '\n'.join(list([f"{k}:{v}"
-                                                    for k, v in keyword.items()]))
+                            keyword = decode_tensor(tokenizer, keywords[i], remove_past_sep=True)
+                            hypo = decode_tensor(tokenizer, hypos[i], remove_past_sep=True)
+                            string = f'keyword: {keyword}\nhypo: {hypo}'
                             logger(f"eval/keyword/epoch{epoch}", string, (n_step - 1) * B + i)
 
     return epoch_stats, keywords, None

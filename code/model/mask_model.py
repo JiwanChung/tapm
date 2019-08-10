@@ -16,7 +16,7 @@ class MaskModel(TransformerModel):
         self.transformer = transformer
         self.transformer.train()
 
-        self.pad_id = tokenizer.pad_id
+        self.tokenizer = tokenizer
 
     def make_batch(self, *args, **kwargs):
         return make_mask_model_batch(*args, random_idx=self.training, **kwargs)
@@ -33,7 +33,7 @@ class MaskModel(TransformerModel):
         scores = []
         ids = []
         for sentence, target in zip(sentences, targets):
-            attention_mask = sentence != self.pad_id
+            attention_mask = sentence != self.tokenizer.pad_id
             outputs = self.transformer(sentence, attention_mask=attention_mask)
             logits = outputs[0]
             # L*L*C
@@ -66,7 +66,7 @@ class MaskModel(TransformerModel):
         return loss_report, scores, ids
 
     def forward_train(self, sentence, lengths, mask_ids, targets):
-        attention_mask = sentence != self.pad_id
+        attention_mask = sentence != self.tokenizer.pad_id
         outputs = self.transformer(sentence, attention_mask=attention_mask)
         logits = outputs[0]
 

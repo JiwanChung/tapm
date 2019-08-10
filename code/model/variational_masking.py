@@ -27,9 +27,7 @@ class VariationalMasking(TransformerModel):
         self.mean = 0  # fix mean
         self.std = args.get('latent_std', 1)
 
-        self.cls_id = tokenizer.cls_id
-        self.sep_id = tokenizer.sep_id
-        self.pad_id = tokenizer.pad_id
+        self.tokenizer = tokenizer
 
         self.encoder = transformer
         if hasattr(args, 'share_encoder_decoder') and args.share_encoder_decoder:
@@ -89,9 +87,9 @@ class VariationalMasking(TransformerModel):
         return kl.mean()
 
     def forward(self, sentence, lengths, targets):
-        cls_mask = sentence != self.cls_id
-        sep_mask = sentence != self.sep_id
-        attention_mask = sentence != self.pad_id
+        cls_mask = sentence != self.tokenizer.cls_id
+        sep_mask = sentence != self.tokenizer.sep_id
+        attention_mask = sentence != self.tokenizer.pad_id
         masks = [cls_mask, sep_mask, attention_mask]
         all_mask = masks[0]
         for mask in masks:
