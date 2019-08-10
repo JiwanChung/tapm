@@ -5,7 +5,7 @@ from collections import defaultdict
 
 from tensor_utils import move_device
 from data.batcher import decode_tensor
-from sampler import Sampler
+from sampler import get_sampler
 
 
 def evaluate(args, model, loss_fn, optimizer, tokenizer, dataloaders,
@@ -63,7 +63,7 @@ def evaluate_base(args, model, loss_fn, tokenizer, dataloaders,
                 if n_step <= 5:
                     hypos = logits.argmax(dim=-1)
                     if args.eval_generate:
-                        sampler = Sampler(args, model)
+                        sampler = get_sampler(args, model)
                         hypos = sampler(keywords)
 
                     for i in range(B):
