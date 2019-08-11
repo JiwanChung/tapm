@@ -83,8 +83,12 @@ class NucleusSampler(Sampler):
         V = probs.shape[1]
         probs, idx = probs.contiguous().view(-1).sort(dim=-1, descending=True)
         probs = probs / probs.sum(dim=-1)
+
+        # pick first index with cumul prob > self.p
         probs = probs.cumsum(dim=-1)
         sentinel = (probs >= self.p).nonzero()[0].item()
+
+        # cut idx
         idx = idx[:sentinel + 1]
         idx = torch.stack((idx // V, idx % V), dim=-1)
         return idx
