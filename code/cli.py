@@ -1,3 +1,4 @@
+import math
 import random
 from pathlib import Path
 
@@ -57,6 +58,10 @@ class Cli:
         if 'keyword_dir' in args and args.keyword_dir is not None:
             args.data_path = add_keyword_paths(args.data_path, args.keyword_dir)
         dataloaders = get_dataloaders(args, args.data_path, model.make_batch, tokenizer)
+        args.batch_per_epoch = {}
+        for key in dataloaders.keys():
+            args.batch_per_epoch[key] = \
+                math.ceil(len(dataloaders[key]) / args.batch_sizes[key])
         loss_fn = Loss(padding_idx=tokenizer.pad_id)
         logger = Logger(args)
         optimizer = get_optimizer(args, model, dataloaders)

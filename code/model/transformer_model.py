@@ -9,6 +9,10 @@ class TransformerModel(nn.Module):
         return make_bert_batch(*args, **kwargs)
 
     @classmethod
+    def get_args(cls, args):
+        return args
+
+    @classmethod
     def build(cls, args):
         transformer, tokenizer = get_transformer(cls.transformer_name)
         return cls(args, transformer, tokenizer), tokenizer

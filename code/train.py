@@ -27,7 +27,8 @@ def train(args, model, loss_fn, optimizer, tokenizer, dataloaders, logger):
                                 to=args.device)
             B = batch[0].shape[0] if torch.is_tensor(batch[0]) else len(batch[0])
             targets = batch[-1]
-            logits, targets, reg_loss, added_stats, keywords = model(*batch)
+            logits, targets, reg_loss, added_stats, keywords = model(*batch,
+                                                                     batch_per_epoch=args.batch_per_epoch['train'])
             loss, stats = loss_fn(logits, targets)
 
             if loss is not None:
@@ -64,13 +65,10 @@ def train(args, model, loss_fn, optimizer, tokenizer, dataloaders, logger):
                         ((n_step + 1) % args.log_text_every == 0):
                     for i in range(B):
                         if keywords is not None:
-                            keyword = {k: decode_tensor(tokenizer, v[i])
-                                    if v[i].dtype == torch.long
-                                    else '/'.join(["%.2f" % j for j in v[i].detach().cpu().numpy()])
-                                        for k, v in keywords.items()}
-                            string = '\n'.join(list([f"{k}:{v}"
-                                                    for k, v in keyword.items()]))
-                            logger(f"train/keyword", string, n_step)
+                            keyword = decode_tensor(tokenizer, keywords[i], remove_past_sep=True)
+                            target = decode_tensor(tokenizer, batch[-1][i], remove_past_sep=True)
+                            string = f'keyword: {keyword}\ntarget: {target}'
+                            logger(f"train/keyword/epoch{epoch}", string, (n_step - 1) * B + i)
 
         num = epoch_stats.pop('num')
         epoch_stats = {k: v / num for k, v in epoch_stats.items()}

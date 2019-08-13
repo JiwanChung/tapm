@@ -27,7 +27,7 @@ class MaskModel(TransformerModel):
         else:
             return self.forward_eval(sentence, lengths, mask_ids, target)
 
-    def forward_eval(self, sentences, lengths, mask_ids, targets):
+    def forward_eval(self, sentences, lengths, mask_ids, targets, **kwargs):
         # list of len(B) containing batch L*L
         loss_report = []
         scores = []

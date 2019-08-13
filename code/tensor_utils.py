@@ -1,6 +1,14 @@
 import torch
 
 
+def onehot(x, max_size):
+    hot = torch.FloatTensor(*x.shape, max_size).to(x.device)
+    x = x.unsqueeze(-1)
+    hot.zero_()
+    hot.scatter_(-1, x, 1)
+    return hot.detach()
+
+
 def unsqueeze_expand(src, tgt):
     if len(src.shape) != len(tgt.shape):
         src = src.view(*src.shape, *[1 for i in range(

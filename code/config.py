@@ -10,9 +10,11 @@ config = {
     'extract_keyword': False,
     'extraction_threshold': 0.2,
     'extraction_min_words': 2,
-    'eval_generate': True,
+    'eval_generate': False,
+    'binarize_mask': False,
 
-    'max_target_len': 30,
+    'max_sentence_tokens': 50,
+    'max_target_len': 30,  # max bpe token num in target: 69
     'sampling_method': 'greedy',
     'sampling_k': 8,
     'sampling_p': 0.9,

@@ -11,13 +11,19 @@ from sampler import get_sampler
 def evaluate(args, model, loss_fn, optimizer, tokenizer, dataloaders,
              logger, print_output=False, epoch=0):
     print("evaluating")
-    return {
+    eval_dict = {
         'mask_model': evaluate_mask,
         'autoencoder': evaluate_base,
         'variational_masking': evaluate_base,
+        'deterministic_masking': evaluate_base,
         'lstm_keyword_lm': evaluate_base
-    }[args.model.lower()](args, model, loss_fn, tokenizer, dataloaders,
-                          logger, print_output, epoch)
+    }
+    if args.model.lower() in eval_dict:
+        func = eval_dict[args.model.lower()]
+    else:
+        func = evaluate_base
+    return func(args, model, loss_fn, tokenizer, dataloaders,
+                logger, print_output, epoch)
 
 
 def evaluate_base(args, model, loss_fn, tokenizer, dataloaders,
@@ -34,9 +40,9 @@ def evaluate_base(args, model, loss_fn, tokenizer, dataloaders,
                                 to=args.device)
             B = batch[0].shape[0] if torch.is_tensor(batch[0]) else len(batch[0])
             targets = batch[-1]
-            logits, targets, reg_loss, added_stats, keywords = model(*batch)
+            logits, targets, reg_loss, added_stats, keywords = model(*batch,
+                                                                     batch_per_epoch=args.batch_per_epoch['train'])
             loss, stats = loss_fn(logits, targets)
-
 
             if loss is not None:
                 if reg_loss is not None:
@@ -70,7 +76,8 @@ def evaluate_base(args, model, loss_fn, tokenizer, dataloaders,
                         if keywords is not None:
                             keyword = decode_tensor(tokenizer, keywords[i], remove_past_sep=True)
                             hypo = decode_tensor(tokenizer, hypos[i], remove_past_sep=True)
-                            string = f'keyword: {keyword}\nhypo: {hypo}'
+                            target = decode_tensor(tokenizer, targets[i], remove_past_sep=True)
+                            string = f'keyword: {keyword}\nhypo: {hypo}\ntarget: {target}'
                             logger(f"eval/keyword/epoch{epoch}", string, (n_step - 1) * B + i)
 
     return epoch_stats, keywords, None

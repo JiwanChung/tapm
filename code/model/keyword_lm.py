@@ -9,6 +9,12 @@ from .transformer_model import TransformerModel
 class LSTMKeywordLM(TransformerModel):
     transformer_name = 'bert'
 
+    @classmethod
+    def get_args(cls, args):
+        args = super().get_args(args)
+        args.eval_generate = True
+        return args
+
     def __init__(self, args, transformer, tokenizer):
         super(LSTMKeywordLM, self).__init__()
 
@@ -34,7 +40,7 @@ class LSTMKeywordLM(TransformerModel):
     def out(self, x):
         return torch.matmul(x, self.wte.weight.t())
 
-    def forward(self, sentences, lengths, targets, keywords):
+    def forward(self, sentences, lengths, targets, keywords, **kwargs):
         h = self.encode(keywords)
         s = self.wte(sentences)
 
