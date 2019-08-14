@@ -40,7 +40,10 @@ class LSTMKeywordLM(TransformerModel):
     def out(self, x):
         return torch.matmul(x, self.wte.weight.t())
 
-    def forward(self, sentences, lengths, targets, keywords, **kwargs):
+    def forward(self, batch, **kwargs):
+        keywords = batch.keywords
+        sentences = batch.sentences
+        targets = batch.targets[:, 1:]  # remove cls
         h = self.encode(keywords)
         s = self.wte(sentences)
 

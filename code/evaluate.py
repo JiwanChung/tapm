@@ -34,13 +34,11 @@ def evaluate_base(args, model, loss_fn, tokenizer, dataloaders,
     dataloader = dataloaders['val']
     with torch.no_grad():
         for batch in tqdm(dataloader, total=len(dataloader)):
-            ids = batch[0]
-            batch = batch[1:]
-            batch = move_device(*batch,
+            batch = move_device(batch,
                                 to=args.device)
-            B = batch[0].shape[0] if torch.is_tensor(batch[0]) else len(batch[0])
-            targets = batch[-1]
-            logits, targets, reg_loss, added_stats, keywords = model(*batch,
+            B = batch['sentences'].shape[0] if torch.is_tensor(batch['sentences']) else len(batch['sentences'])
+            targets = batch['targets']
+            logits, targets, reg_loss, added_stats, keywords = model(batch,
                                                                      batch_per_epoch=args.batch_per_epoch['train'])
             loss, stats = loss_fn(logits, targets)
 
@@ -90,11 +88,11 @@ def evaluate_mask(args, model, loss_fn, tokenizer, dataloaders, logger, print_ou
     dataloader = dataloaders['val']
     with torch.no_grad():
         for batch in tqdm(dataloader, total=len(dataloader)):
-            batch = move_device(*batch,
+            batch = move_device(batch,
                                 to=args.device)
-            B = batch[0].shape[0] if torch.is_tensor(batch) else len(batch[0])
-            targets = batch[-1]
-            loss, scores, ids = model(*batch)
+            B = batch['sentences'].shape[0] if torch.is_tensor(batch['sentences']) else len(batch['sentences'])
+            targets = batch['targets']
+            loss, scores, ids = model(batch)
 
             n_step += 1
 

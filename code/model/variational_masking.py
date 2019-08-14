@@ -97,7 +97,9 @@ class VariationalMasking(TransformerModel):
         kl = kl.contiguous().masked_select(specials_mask)
         return kl.mean()
 
-    def forward(self, sentence, lengths, targets, **kwargs):
+    def forward(self, batch, **kwargs):
+        sentence = batch.sentences
+        targets = batch.targets
         targets_orig = targets
         # make special token mask
         cls_mask = sentence != self.tokenizer.cls_id

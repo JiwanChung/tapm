@@ -21,13 +21,11 @@ def train(args, model, loss_fn, optimizer, tokenizer, dataloaders, logger):
         model.train()
         for batch in tqdm(dataloader, total=len(dataloader)):
             optimizer[0].zero_grad()
-            ids = batch[0]
-            batch = batch[1:]
-            batch = move_device(*batch,
+            batch = move_device(batch,
                                 to=args.device)
-            B = batch[0].shape[0] if torch.is_tensor(batch[0]) else len(batch[0])
-            targets = batch[-1]
-            logits, targets, reg_loss, added_stats, keywords = model(*batch,
+            B = batch['sentences'].shape[0] if torch.is_tensor(batch['sentences']) else len(batch['sentence'])
+            targets = batch['targets']
+            logits, targets, reg_loss, added_stats, keywords = model(batch,
                                                                      batch_per_epoch=args.batch_per_epoch['train'])
             loss, stats = loss_fn(logits, targets)
 
@@ -66,7 +64,7 @@ def train(args, model, loss_fn, optimizer, tokenizer, dataloaders, logger):
                     for i in range(B):
                         if keywords is not None:
                             keyword = decode_tensor(tokenizer, keywords[i], remove_past_sep=True)
-                            target = decode_tensor(tokenizer, batch[-1][i], remove_past_sep=True)
+                            target = decode_tensor(tokenizer, batch['targets'][i], remove_past_sep=True)
                             string = f'keyword: {keyword}\ntarget: {target}'
                             logger(f"train/keyword/epoch{epoch}", string, (n_step - 1) * B + i)
 

@@ -27,8 +27,9 @@ class DeterministicMasking(TransformerModel):
         super(DeterministicMasking, self).__init__()
 
         self.mean = 0  # fix mean
-        self.binarize_mask = args.get('binarize_mask', False)
+        self.binarize_mask = args.get('binarize_mask', True)
         self.num_keywords = args.get('num_keywords', 1000)
+        self.keyword_loss_ema = args.get('keyword_loss_ema', False)
 
         self.tokenizer = tokenizer
 
@@ -43,11 +44,16 @@ class DeterministicMasking(TransformerModel):
 
         self.straight_through = BinaryLayer()
 
-        self.norm_n = 0
+        self.norm_n = args.get('loss_norm_n', 0)
         self.V = len(tokenizer)
         keyword_vector = torch.cat((torch.ones(self.num_keywords),
                                     torch.zeros(self.V - self.num_keywords)), dim=0).float()
         self.keyword_loss_threshold = l_n_norm(keyword_vector, n=self.norm_n)
+        if self.keyword_loss_ema:
+            self.ema_alpha = args.get('keyword_ema_alpha', 0.001)
+            self.keywords_count = nn.Parameter(keyword_vector.clone())
+            self.keywords_count.requires_grad_(False)
+            self.keywords_count.fill_(0)
 
     def onehot(self, x):
         return onehot(x, self.V)
@@ -58,16 +64,30 @@ class DeterministicMasking(TransformerModel):
 
     def get_keyword_loss(self, mask, sentence, batch_per_epoch=1):
         mask = mask.unsqueeze(-1) * self.onehot(sentence)  # BL BLV
-        mask = mask.sum(dim=0).sum(dim=0)  # B
-        loss = l_n_norm(mask, n=self.norm_n) - self.keyword_loss_threshold / batch_per_epoch
-        loss = torch.max(loss, torch.zeros(1).to(mask.device))
-        loss = loss / (sentence.shape[0] * sentence.shape[1])  # mean for token num
-        return loss
+        mask = mask.sum(dim=0).sum(dim=0)  # V
+        mask = torch.max(mask, torch.zeros(1).to(mask.device))
+        if self.keyword_loss_ema:
+            keywords_count = mask + self.keywords_count
+            loss = l_n_norm(keywords_count, n=self.norm_n)
+            loss = loss - self.keyword_loss_threshold
+            loss = torch.max(loss, torch.zeros(1).to(loss.device))
+            self.keywords_count.data = self.ema_alpha * keywords_count.detach() \
+                + (1 - self.ema_alpha) * self.keywords_count
+            return loss, l_n_norm(mask, n=self.norm_n).detach()
+        else:
+            loss = l_n_norm(mask, n=self.norm_n) - self.keyword_loss_threshold / batch_per_epoch
+            # loss = l_n_norm(mask, n=2)
+
+            loss = torch.max(loss, torch.zeros(1).to(mask.device))
+            loss = loss / (sentence.shape[0] * sentence.shape[1])  # mean for token num
+            return loss, None
 
     def mask_encoder(self, x):
         return self.mean_encoder(x).squeeze(-1)
 
-    def forward(self, sentence, lengths, targets, batch_per_epoch=1,**kwargs):
+    def forward(self, batch, batch_per_epoch=1,**kwargs):
+        sentence = batch.sentences
+        targets = batch.targets
         targets_orig = targets
         # make special token mask
         cls_mask = sentence != self.tokenizer.cls_id
@@ -91,10 +111,9 @@ class DeterministicMasking(TransformerModel):
         # bottleneck
         z = self.mask_encoder(x_feat)
         m = saturating_sigmoid(z)
-        m = m - 0.5
+        keyword_loss, keywords_count = self.get_keyword_loss(m, sentence, batch_per_epoch)
         if self.binarize_mask:
-            m = self.straight_through(m)
-        keyword_loss = self.get_keyword_loss(m, sentence, batch_per_epoch)
+            m = self.straight_through(m - 0.5)
         keywords_mask = m > 0
 
         # decoder
@@ -125,6 +144,13 @@ class DeterministicMasking(TransformerModel):
                 keyword = keyword.gather(dim=0, index=keyword_idx)
                 keywords.append(keyword)
                 scores.append(score)
+
+            if self.keyword_loss_ema:
+                total_keywords_count = l_n_norm(self.keywords_count, n=self.norm_n).item()
+                stats = {**stats,
+                    'keywords_count': keywords_count.item(),
+                    'total_keywords_count': total_keywords_count
+                }
 
         return logits, targets, keyword_loss, \
             stats, keywords

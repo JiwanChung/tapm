@@ -11,7 +11,6 @@ config = {
     'extraction_threshold': 0.2,
     'extraction_min_words': 2,
     'eval_generate': False,
-    'binarize_mask': False,
 
     'max_sentence_tokens': 50,
     'max_target_len': 30,  # max bpe token num in target: 69
@@ -27,7 +26,7 @@ config = {
     'train_path': 'data/LSMDC/task1/LSMDC16_annos_training_someone.csv',
     'val_path': 'data/LSMDC/task1/LSMDC16_annos_val_someone.csv',
     'test_path': None,
-    'keyword_dir': None,
+    'keyword_dir': 'keywords_top1000',
     'num_workers': 32,
 
     'sample': False,

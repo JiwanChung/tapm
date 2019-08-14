@@ -20,13 +20,18 @@ def unsqueeze_expand(src, tgt):
     return src
 
 
-def move_device(*tensors, to=-1):
-    li = []
-    for tensor in tensors:
+def move_device(batch, to=-1):
+    for key, tensor in batch.items():
         if torch.is_tensor(tensor):
-            li.append(tensor.to(to))
+            batch[key] = tensor.to(to)
         elif tensor is None:
-            li.append(None)
+            batch[key] = None
         else:
-            li.append([t.to(to) for t in tensor])
-    return li
+            li = []
+            for t in tensor:
+                if torch.is_tensor(t):
+                    li.append(t.to(to))
+                else:
+                    li.append(t)
+            batch[key] = li
+    return batch

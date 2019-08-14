@@ -22,13 +22,15 @@ def saturating_sigmoid(x):
     return (1.2 * torch.sigmoid(x) - 0.1).clamp(0, 1)
 
 
-def l_n_norm(x, dim=0, n=1):
+def l_n_norm(x, dim=0, n=1, normalize=False):
     if n > 0:
         x = torch.abs(x)
-        return (x ** n).sum(dim=dim) ** (1 / n)
+        x = (x ** n).sum(dim=dim)
+        if normalize:
+            x = x ** (1 / n)
+        return x
     elif n == 0:
         x = torch.abs(x)
-        x = x.clamp(0, 1)
         f = BinaryLayer()
         x = f(x)
         return x.sum(dim=dim)
