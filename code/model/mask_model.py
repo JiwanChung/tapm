@@ -71,11 +71,11 @@ class MaskModel(TransformerModel):
             if len(probs.shape) > 1:
                 probs = probs[:, 1: -1]  # remove cls, sep
                 probs = probs.prod(dim=-1)
-            val, idx = probs.sort(dim=0, descending=False)
+            val, idx = losses.sort(dim=0, descending=False)
             idx = idx + 1  # remember cls
             idx = target[idx]
             ids.append(idx)
-            scores.append(losses)
+            scores.append(val)
         loss_report = torch.Tensor(loss_report).float().to(sentences[0].device).mean()
         return loss_report, scores, ids
 
