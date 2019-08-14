@@ -18,8 +18,8 @@ class Encoder(nn.Module):
             'max': lambda x, dim: x.max(dim=dim)[0],
         }[args.transformer_pool.lower()]
 
-        self.transformer = transformer
-        self.embed = self.transformer.wte
+        self.net = transformer
+        self.embed = self.net.transformer.wte
         self.tokenizer = tokenizer
         self.pad_id = self.tokenizer.pad_id
 
@@ -29,7 +29,7 @@ class Encoder(nn.Module):
         lengths = lengths - 1
 
         B = sentence.shape[0]
-        h, _, = self.transformer(sentence)
+        h, _, = self.net(sentence)
 
         h = self.aggregate(h, -1)
         scores = torch.sigmoid(h).clone()

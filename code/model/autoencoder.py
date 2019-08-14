@@ -2,15 +2,18 @@ import torch
 from torch import nn
 import torch.nn.functional as F
 
+from data.batcher import make_autoencoder_batch
+
+from .transformer_model import TransformerModel
 from .encoder import Encoder
 from .decoder import Decoder
 
 
-class Model(nn.Module):
+class Autoencoder(TransformerModel):
     transformer_name = 'gpt2'
 
     def __init__(self, args, transformers, tokenizer):
-        super(Model, self).__init__()
+        super(Autoencoder, self).__init__()
 
         self.use_keyword = args.use_keyword
 
@@ -18,6 +21,8 @@ class Model(nn.Module):
             self.encoder = Encoder(args, transformers['encoder'], tokenizer)
         self.decoder = Decoder(args, transformers['decoder'], tokenizer)
 
+    def make_batch(self, *args, **kwargs):
+        return make_autoencoder_batch(*args, **kwargs)
     def forward(self, sentence, lengths, targets):
         if self.use_keyword:
             keywords, keyword_lengths, scores, reg_loss = \
