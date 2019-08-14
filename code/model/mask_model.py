@@ -60,22 +60,26 @@ class MaskModel(TransformerModel):
             losses = F.cross_entropy(idx_logit.contiguous().view(-1, C),
                                      idx_target.view(-1),
                                      reduction='none').contiguous().view(*idx_target.shape)
-            if len(losses.shape) > 1:
-                losses = losses.sum(dim=-1)
-            loss_report.append(losses.mean())
-            # L
-            probs = F.softmax(idx_logit, dim=-1)
-            probs = probs.gather(dim=-1, index=idx_target.unsqueeze(-1)).squeeze(-1)
+            with torch.no_grad():
+                loss_report.append(losses.mean())
+                # L
+                probs = F.softmax(idx_logit, dim=-1)
+                probs = probs.gather(dim=-1, index=idx_target.unsqueeze(-1)).squeeze(-1)
 
-            probs = probs[1: -1]  # remove cls, sep
-            if len(probs.shape) > 1:
-                probs = probs[:, 1: -1]  # remove cls, sep
-                probs = probs.prod(dim=-1)
-            val, idx = losses.sort(dim=0, descending=False)
-            idx = idx + 1  # remember cls
-            idx = target[idx]
-            ids.append(idx)
-            scores.append(val)
+                probs = probs[1: -1]  # remove cls, sep
+                losses = losses.detach()
+                losses = losses[1: -1]  # remove cls, sep
+                if len(probs.shape) > 1:
+                    probs = probs[:, 1: -1]  # remove cls, sep
+                    probs = probs.prod(dim=-1)
+                if len(losses.shape) > 1:
+                    losses = losses[:, 1: -1]  # remove cls, sep
+                    losses = losses.sum(dim=-1)
+                val, idx = losses.sort(dim=0, descending=False)
+                idx = idx + 1  # remember cls
+                idx = target[idx]
+                ids.append(idx)
+                scores.append(val)
         loss_report = torch.Tensor(loss_report).float().to(sentences[0].device).mean()
         return loss_report, scores, ids
 
