@@ -10,9 +10,11 @@ from utils import get_dirname_from_args
 
 def get_ckpt_path(args, epoch, loss):
     ckpt_name = get_dirname_from_args(args)
-    os.makedirs(args.ckpt_path, exist_ok=True)
-    ckpt_path = args.ckpt_path / \
-        f'loss_{loss}_epoch_{epoch}_{ckpt_name}.pickle'
+    ckpt_path = args.ckpt_path / ckpt_name
+    ckpt_path.mkdir(exist_ok=True)
+    loss = '{:.4f}'.format(loss)
+    ckpt_path = ckpt_path / \
+        f'loss_{loss}_epoch_{epoch}.pickle'
 
     return ckpt_path
 

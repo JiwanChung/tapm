@@ -60,7 +60,12 @@ def get_dirname_from_args(args):
         dirname += '_'
         dirname += key
         dirname += '_'
-        dirname += str(args[key])
+        val = args[key]
+        if isinstance(val, float):
+            val = '{:.2f}'.format(val)
+        else:
+            val = str(val)
+        dirname += val
 
     return dirname[1:]
 

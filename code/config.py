@@ -44,9 +44,8 @@ debug_options = {
 }
 
 log_keys = [
+    'sample',
     'model',
-    'reg_coeff',
-    'keyword_threshold',
-    'threshold_gap',
     'learning_rate',
+    'keyword_ratio',
 ]
