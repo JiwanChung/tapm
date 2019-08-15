@@ -29,7 +29,7 @@ class Encoder(nn.Module):
         lengths = lengths - 1
 
         B = sentence.shape[0]
-        h, _, = self.net(sentence)
+        h, _, = self.net.transformer(sentence)
 
         h = self.aggregate(h, -1)
         scores = torch.sigmoid(h).clone()

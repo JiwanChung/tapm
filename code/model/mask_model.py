@@ -2,7 +2,7 @@ import torch
 from torch import nn
 import torch.nn.functional as F
 
-from data.batcher import make_mask_model_batch
+from data.batcher import make_mask_model_batch, make_subset_mask_batch
 
 from .transformer_model import TransformerModel
 
@@ -110,3 +110,96 @@ class MaskModel(TransformerModel):
             hypos = torch.stack((hypos, idx_target), dim=-1)
 
         return idx_logit, idx_target, None, {'idx_prob': idx_prob.mean().item()}, None
+
+
+
+class SubsetMaskModel(TransformerModel):
+    transformer_name = 'bert'
+
+    def __init__(self, args, transformer, tokenizer):
+        super(SubsetMaskModel, self).__init__()
+
+        self.net = transformer
+        self.net.train()
+
+        self.tokenizer = tokenizer
+
+        bert_dim = self.net.bert.config.hidden_size
+
+    def make_batch(self, *args, **kwargs):
+        return make_subset_mask_batch(*args, random_idx=self.training, **kwargs)
+
+    def forward(self, batch, **kwargs):
+        if self.training:
+            return self.forward_train(batch)
+        else:
+            return self.forward_eval(batch)
+
+    def forward_train(self, batch, **kwargs):
+        sentence = batch.sentences
+        targets = batch.targets
+        keyword_ids = batch.keyword_ids
+        attention_mask = sentence != self.tokenizer.pad_id
+        outputs = self.net(sentence, attention_mask=attention_mask)
+        logits = outputs[0]
+
+        # BLC -> BC
+
+        with torch.no_grad():
+            idx_prob = F.softmax(logits.detach(), dim=-1)
+            # BC -> B
+            idx_prob = idx_prob.gather(dim=-1, index=targets.unsqueeze(-1)).squeeze(1)
+
+            # BC -> B
+            hypos = logits.detach().argmax(dim=-1)
+            hypos = torch.stack((hypos, targets), dim=-1)
+
+        return logits, targets, None, {'idx_prob': idx_prob.mean().item()}, None
+
+    def forward_eval(self, batch, **kwargs):
+        sentences = batch.sentences
+        targets = batch.targets
+        keyword_ids = batch.keyword_ids
+        # list of len(B) containing batch L*L
+        scores = []
+        loss_report = []
+        ids = []
+        for combs, sentence, target in zip(keyword_ids, sentences, targets):
+            for comb_L in combs:
+                sentence_comb = sentence.clone().unsqueeze(0).expand(comb_L.shape[0], -1)
+                comb_mask = torch.zeros(*sentence_comb.shape).byte().to(sentence_comb.device)
+                comb_mask.scatter_(dim=1, index=comb_L, src=1)
+                sentence_comb = sentence_comb * comb_mask.long()
+
+                attention_mask = sentence_comb != self.tokenizer.pad_id
+                outputs = self.net(sentence_comb, attention_mask=attention_mask)
+                logits = outputs[0]
+                # B*L*C
+                L = logits.shape[0]
+                C = logits.shape[-1]
+
+                # LC, L
+                idx_logit = logits
+                idx_target = target[:logits.shape[0]].unsqueeze(0).expand(logits.shape[0], -1).contiguous()
+
+                losses = F.cross_entropy(idx_logit.contiguous().view(-1, C),
+                                        idx_target.view(-1),
+                                        reduction='none').contiguous().view(*idx_target.shape)
+                # BL
+                with torch.no_grad():
+                    # BLV
+                    probs = F.softmax(idx_logit, dim=-1)
+                    probs = probs.gather(dim=-1, index=idx_target.unsqueeze(-1)).squeeze(-1)
+                    probs = probs[:, 1: -1]  # remove cls, sep
+                    # BL
+                    losses = losses.detach()
+                    losses = losses[:, 1: -1]  # remove cls, sep
+                    losses = losses.mean(-1)  # B
+                    i = losses.argmax(dim=0)
+                    scores.append(losses[i])
+                    ids.append(comb_L[i])
+                    for i in range(losses.shape[0]):
+                        loss_report.append(losses[i].item())
+
+        loss_report = torch.Tensor(loss_report).float().to(sentences[0].device).mean()
+        return loss_report, scores, ids
