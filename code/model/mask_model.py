@@ -1,8 +1,13 @@
+import math
+
 import torch
 from torch import nn
 import torch.nn.functional as F
 
-from data.batcher import make_mask_model_batch, make_subset_mask_batch
+from data.batcher import (
+    make_mask_model_batch, make_subset_mask_batch,
+    remove_pad
+)
 
 from .transformer_model import TransformerModel
 
@@ -119,6 +124,9 @@ class SubsetMaskModel(TransformerModel):
     def __init__(self, args, transformer, tokenizer):
         super(SubsetMaskModel, self).__init__()
 
+        self.extraction_min_words = args.extraction_min_words
+        self.keyword_ratio = args.keyword_ratio
+
         self.net = transformer
         self.net.train()
 
@@ -143,8 +151,6 @@ class SubsetMaskModel(TransformerModel):
         outputs = self.net(sentence, attention_mask=attention_mask)
         logits = outputs[0]
 
-        # BLC -> BC
-
         with torch.no_grad():
             idx_prob = F.softmax(logits.detach(), dim=-1)
             # BC -> B
@@ -156,6 +162,7 @@ class SubsetMaskModel(TransformerModel):
 
         return logits, targets, None, {'idx_prob': idx_prob.mean().item()}, None
 
+    '''
     def forward_eval(self, batch, **kwargs):
         sentences = batch.sentences
         targets = batch.targets
@@ -200,6 +207,63 @@ class SubsetMaskModel(TransformerModel):
                     ids.append(comb_L[i])
                     for i in range(losses.shape[0]):
                         loss_report.append(losses[i].item())
+
+        loss_report = torch.Tensor(loss_report).float().to(sentences[0].device).mean()
+        return loss_report, scores, ids
+    '''
+
+    def forward_eval(self, batch, **kwargs):
+        sentences = batch.sentences
+        targets = batch.targets
+        lengths = batch.lengths
+        scores = []
+        loss_report = []
+        ids = []
+        for i, (sentence, target) in enumerate(zip(sentences, targets)):
+            max_keyword_num = math.ceil(max(self.extraction_min_words, lengths[i].float().item() * self.keyword_ratio))
+            storage = sentence.clone()
+            storage = remove_pad(storage, self.tokenizer.pad_id)
+            storage[1: -1] = self.tokenizer.mask_id  # mask except cls, sep
+            row_scores = []
+            row_ids = []
+            prev_pos = []
+            for j in range(max_keyword_num):
+                # L -> LL
+                x = storage.clone()
+                x = x.unsqueeze(0).expand(x.shape[0], -1)
+                scatter_mask = torch.eye(x.shape[0]).byte().to(x.device)
+                x.masked_scatter_(scatter_mask, sentence)
+
+                attention_mask = x != self.tokenizer.pad_id
+                outputs = self.net(x, attention_mask=attention_mask)
+                logits = outputs[0]
+                C = logits.shape[-1]
+
+                idx_logit = logits
+                idx_target = target[:logits.shape[0]].unsqueeze(0).expand(logits.shape[0], -1).contiguous()
+
+                losses = F.cross_entropy(idx_logit.contiguous().view(-1, C),
+                                        idx_target.view(-1),
+                                        reduction='none').contiguous().view(*idx_target.shape)
+                # LL
+                losses = losses.detach()
+                losses = losses[:, 1: -1]  # remove cls, sep
+                losses = losses.mean(-1)  # L
+                # skip identity, cls, sep
+                for idx in [0, -1, *prev_pos]:
+                    losses[idx] = float('inf')
+                idx = losses.argmin(dim=0)
+                storage[idx] = sentence[idx]
+
+                prev_pos.append(idx)
+                row_scores.append(losses[idx])
+                row_ids.append(sentence[idx])
+
+            row_scores = torch.Tensor(row_scores).to(sentence.device).float()
+            scores.append(row_scores)
+            row_ids = torch.Tensor(row_ids).to(sentence.device).long()
+            ids.append(row_ids)
+            loss_report.append(row_scores.mean().item())
 
         loss_report = torch.Tensor(loss_report).float().to(sentences[0].device).mean()
         return loss_report, scores, ids

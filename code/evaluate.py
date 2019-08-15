@@ -13,6 +13,7 @@ def evaluate(args, model, loss_fn, optimizer, tokenizer, dataloaders,
     print("evaluating")
     eval_dict = {
         'mask_model': evaluate_mask,
+        'subset_mask_model': evaluate_mask,
         'autoencoder': evaluate_base,
         'variational_masking': evaluate_base,
         'deterministic_masking': evaluate_base,
@@ -70,12 +71,14 @@ def evaluate_base(args, model, loss_fn, tokenizer, dataloaders,
                         sampler = get_sampler(args, model)
                         hypos = sampler(keywords)
 
-                    for i in range(B):
-                        if keywords is not None:
+                    if keywords is not None:
+                        if isinstance(keywords, tuple):
+                            keywords, scores = keywords
+                        for i in range(B):
                             keyword = decode_tensor(tokenizer, keywords[i], remove_past_sep=True)
-                            hypo = decode_tensor(tokenizer, hypos[i], remove_past_sep=True)
-                            target = decode_tensor(tokenizer, targets[i], remove_past_sep=True)
-                            string = f'keyword: {keyword}\nhypo: {hypo}\ntarget: {target}'
+                            score = '/'.join(["%.2f" % j for j in scores[i].detach().cpu().numpy()])
+                            target = decode_tensor(tokenizer, batch['targets'][i], remove_past_sep=True)
+                            string = f"keywords:{[f'({i}/{j})' for i, j in zip(keyword.split(), score.split('/'))]}\ntarget: {target}"
                             logger(f"eval/keyword/epoch{epoch}", string, (n_step - 1) * B + i)
 
     return epoch_stats, keywords, None

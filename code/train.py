@@ -61,11 +61,14 @@ def train(args, model, loss_fn, optimizer, tokenizer, dataloaders, logger):
                     logger(f"train/iters/{name}", val, n_step)
                 if args.log_text_every > 0 and \
                         ((n_step + 1) % args.log_text_every == 0):
-                    for i in range(B):
-                        if keywords is not None:
+                    if keywords is not None:
+                        if isinstance(keywords, tuple):
+                            keywords, scores = keywords
+                        for i in range(B):
                             keyword = decode_tensor(tokenizer, keywords[i], remove_past_sep=True)
+                            score = '/'.join(["%.2f" % j for j in scores[i].detach().cpu().numpy()])
                             target = decode_tensor(tokenizer, batch['targets'][i], remove_past_sep=True)
-                            string = f'keyword: {keyword}\ntarget: {target}'
+                            string = f"keywords:{[f'({i}/{j})' for i, j in zip(keyword.split(), score.split('/'))]}\ntarget: {target}"
                             logger(f"train/keyword/epoch{epoch}", string, (n_step - 1) * B + i)
 
         num = epoch_stats.pop('num')
