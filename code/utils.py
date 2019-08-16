@@ -30,7 +30,10 @@ def resolve_keyword_dir(keyword_dir, path):
 def get_keyword_path(data_path, key, dir_name=None, args=None):
     if dir_name is None:
         dir_name = f'keywords_{get_dirname_from_args(args)}'
-    path = data_path[key].parent / dir_name
+    path = data_path[key].parent
+    if path.name.startswith('keyword'):
+        path = path.parent
+    path =  path / dir_name
     path.mkdir(parents=True, exist_ok=True)
     path = path / f"{data_path[key].name}.json"
     return path
