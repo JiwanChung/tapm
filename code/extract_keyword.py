@@ -12,17 +12,16 @@ from data.batcher import decode_tensor, remove_pad
 
 def extract_keyword(args, model, tokenizer, dataloader):
     model.eval()
-    threshold = args.extraction_threshold  # prediction probability for mask_model
+    threshold = args.extraction_threshold  # prediction loss for mask_model
     res = {}
     ratios = []
     with torch.no_grad():
         for batch in tqdm(dataloader, total=len(dataloader)):
-            data_ids = batch[0]
-            batch = batch[1:]
-            batch = move_device(*batch, to=args.device)
-            B = batch[0].shape[0] if torch.is_tensor(batch[0]) else len(batch[0])
-            targets = batch[-1]
-            loss, scores, ids = model(*batch)
+            data_ids = batch['id']
+            batch = move_device(batch, to=args.device)
+            B = batch['sentences'].shape[0] if torch.is_tensor(batch['sentences']) else len(batch['sentences'])
+            targets = batch['targets']
+            loss, scores, ids = model(batch)
 
             for i in range(B):
                 min_words = min(args.extraction_min_words, ids[i].shape[0])
@@ -54,8 +53,8 @@ def extract_and_save(key, args, model, tokenizer, dataloaders):
         ratio_percentiles = [10, 20, 50, 80, 90]
         ratio_percentiles = {i: np.percentile(ratios, i) for i in ratio_percentiles}
         print(f"keyword ratio percentiles: {ratio_percentiles}")
-        print("saving keyword")
         path = get_keyword_path(args.data_path, key, args=args)
+        print(f"saving keyword to {path}")
         with open(path, 'w') as f:
             json.dump(res, f, indent=4)
 

@@ -8,7 +8,7 @@ config = {
     'keyword_ratio': 0.4,
     'latent_std': 1,
     'extract_keyword': False,
-    'extraction_threshold': 0.2,
+    'extraction_threshold': 1,
     'extraction_min_words': 2,
     'eval_generate': False,
 

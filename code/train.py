@@ -21,9 +21,8 @@ def train(args, model, loss_fn, optimizer, tokenizer, dataloaders, logger):
         model.train()
         for batch in tqdm(dataloader, total=len(dataloader)):
             optimizer[0].zero_grad()
-            batch = move_device(batch,
-                                to=args.device)
-            B = batch['sentences'].shape[0] if torch.is_tensor(batch['sentences']) else len(batch['sentence'])
+            batch = move_device(batch, to=args.device)
+            B = batch['sentences'].shape[0] if torch.is_tensor(batch['sentences']) else len(batch['sentences'])
             targets = batch['targets']
             logits, targets, reg_loss, added_stats, keywords = model(batch,
                                                                      batch_per_epoch=args.batch_per_epoch['train'])

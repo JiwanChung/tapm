@@ -61,7 +61,7 @@ def get_dirname_from_args(args):
         dirname += key
         dirname += '_'
         val = args[key]
-        if isinstance(val, float):
+        if isinstance(val, float) and (not key == 'learning_rate'):
             val = '{:.2f}'.format(val)
         else:
             val = str(val)

@@ -43,7 +43,7 @@ class LSTMKeywordLM(TransformerModel):
     def forward(self, batch, **kwargs):
         keywords = batch.keywords
         sentences = batch.sentences
-        targets = batch.targets[:, 1:]  # remove cls
+        targets = batch.targets
         h = self.encode(keywords)
         s = self.wte(sentences)
 

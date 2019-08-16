@@ -53,6 +53,7 @@ class Cli:
         args = self._default_args(**kwargs)
         args, model, tokenizer, ckpt = get_model_ckpt(args)
         model.to(args.device)
+        args.update(kwargs)
         if 'keyword_dir' in args and args.keyword_dir is not None:
             args.data_path = add_keyword_paths(args.data_path, args.keyword_dir)
         dataloaders = get_dataloaders(args, args.data_path, model.make_batch, tokenizer)
