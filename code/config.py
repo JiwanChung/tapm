@@ -26,7 +26,8 @@ config = {
     'train_path': 'data/LSMDC/task1/LSMDC16_annos_training_someone.csv',
     'val_path': 'data/LSMDC/task1/LSMDC16_annos_val_someone.csv',
     'test_path': None,
-    'keyword_dir': 'keywords_top1000',
+    #'keyword_dir': 'keywords_top1000',
+    'keyword_dir': None,
     'num_workers': 32,
 
     'sample': False,

@@ -34,8 +34,8 @@ def train(args, model, loss_fn, optimizer, tokenizer, dataloaders, logger):
                 else:
                     final_loss = loss
                 final_loss.backward()
-                optimizer[1].step()
                 optimizer[0].step()
+                optimizer[1].step()
                 n_step += 1
 
                 if reg_loss is not None:
