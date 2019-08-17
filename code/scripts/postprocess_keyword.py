@@ -24,23 +24,7 @@ def main():
     file_name = get_file_name(path.parent.name) if args.filename is None \
         else args.filename
     process(path.parent, data, GetTokenWords(), n, file_name)
-    '''
-    x = Counter()
-    for k in keywords:
-        x[k] += 1
-    cut_stop_words = get_stop_words()
-    for sw in cut_stop_words:
-        if sw in x:
-            del x[sw]
-    x_cut = Counter()
-    for k, v in x.most_common(n):
-        x_cut[k] = v
 
-    save_path = path.parent / f"keyword_{n}.json"
-    print(f"Saving to {save_path}")
-    with open(save_path, 'w') as f:
-        json.dump(x_cut, f, indent=4)
-        '''
 
 def get_file_name(full_name):
     n = full_name.split('_')

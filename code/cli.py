@@ -54,6 +54,10 @@ class Cli:
         args, model, tokenizer, ckpt = get_model_ckpt(args)
         model.to(args.device)
         args.update(kwargs)
+        '''
+        for k, v in args.data_path.items():  # temp fix for outdated models
+            args.data_path[k] = v.parent.parent / v.name[:-5]
+        '''
         dataloaders = get_dataloaders(args, args.data_path, model.make_batch, tokenizer)
         args.batch_per_epoch = {}
         for key in dataloaders.keys():

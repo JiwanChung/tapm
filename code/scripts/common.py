@@ -18,6 +18,18 @@ def run(args, get_words, file_name=None):
 
 
 def process(path, data, get_words, n=1000, file_name=None):
+    counter = get_counter(data, get_words)
+    print(counter.most_common(n))
+    keywords = dict({k: v for k, v in counter.most_common(n)})
+    path = path.parent / 'keywords'
+    path.mkdir(exist_ok=True)
+    path = path / f"keywords_{file_name}_{n}.json"
+    print(f"Saving to {path}")
+    with open(path, 'w') as f:
+        json.dump(keywords, f, indent=4)
+
+
+def get_counter(data, get_words):
     word_sets = list(map(get_words, tqdm(data.values(), total=len(data))))
     counter = Counter()
     for word_set in word_sets:
@@ -26,14 +38,7 @@ def process(path, data, get_words, n=1000, file_name=None):
             if isinstance(word, tuple) or isinstance(word, list):
                 word, score = word
             counter[word] += score
-    print(counter.most_common(n))
-    keywords = dict({k: v for k, v in counter.most_common(n)})
-    path = path.parent
-    path.mkdir(exist_ok=True)
-    path = path / f"keywords_{file_name}{n}.json"
-    print(f"Saving to {path}")
-    with open(path, 'w') as f:
-        json.dump(keywords, f, indent=4)
+    return counter
 
 
 def parse():

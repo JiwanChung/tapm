@@ -1,0 +1,62 @@
+import json
+import argparse
+from pathlib import Path
+from collections import Counter
+from itertools import product
+
+from common import load_data, get_counter, GetWords
+
+
+def parse():
+    path = '../../data/LSMDC/task1/LSMDC16_annos_training_someone.csv'
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('-p', '--path', default=path, type=str)
+    args = parser.parse_args()
+    return args
+
+
+def main():
+    args = parse()
+    path = Path(args.path)
+    keyword_path = path.parent / 'keywords'
+    keyword_files = list(keyword_path.glob('*.json'))
+    keyword_files = [p for p in keyword_files if not p.name.startswith('keywords_total')]
+    assert len(keyword_files) > 0, 'no keyword files'
+    data = {}
+    for p in keyword_files:
+        name = p.name.split('.')[0]
+        name, n = name.split('_')[1:3]
+        n = int(n)
+        with open(p, 'r') as f:
+            datum = json.load(f)
+        assert len(datum) == n, f"data length {len(datum)} does not match n {n}"
+        data[name] = Counter(datum)
+
+    print("pairwise word set similarity")
+    for k1, k2 in product(data.keys(), data.keys()):
+        if k1 != k2:
+            diff = set(data[k1]) - set(data[k2])
+            print(f"{k1}-{k2}: {len(diff)}/{len(data[k1])}")
+
+    total_path = keyword_path / 'keywords_total.json'
+    if total_path.is_file():
+        with open(total_path, 'r') as f:
+            whole = json.load(f)
+        whole = Counter(whole)
+    else:
+        whole = load_data(path)
+        whole = get_counter(whole, GetWords())
+        with open(total_path, 'w') as f:
+            json.dump(whole, f, indent=4)
+    total = sum(whole.values())
+    print("left words")
+    for k in data.keys():
+        left = 0
+        for word in data[k]:
+            if word in whole:
+                left += whole[word]
+        print(f"{k}: {left}/{total}({left/total})")
+
+
+if __name__ == "__main__":
+    main()
