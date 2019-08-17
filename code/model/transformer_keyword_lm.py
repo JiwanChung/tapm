@@ -4,6 +4,7 @@ from torch import nn
 from data.batcher import make_keyword_batch
 
 from .transformer_model import TransformerModel
+from .nn_transformer import Transformer
 
 
 class TransformerKeywordLM(TransformerModel):
@@ -24,7 +25,7 @@ class TransformerKeywordLM(TransformerModel):
         self.dim = transformer.bert.config.hidden_size
 
         self.wte = nn.Embedding(self.V, self.dim)
-        self.transformer = nn.Transformer(self.dim)
+        self.transformer = Transformer(self.dim)
 
     @staticmethod
     def make_batch(*args, **kwargs):
@@ -66,9 +67,11 @@ class TransformerKeywordLM(TransformerModel):
     def decode(self, tgt, memory, src_key_padding_mask):
         tgt_key_padding_mask = self.get_att_mask(tgt)
         tgt = self.embedding(tgt)
+        tgt_mask = self.transformer.generate_square_subsequent_mask(tgt.shape[1])
+        tgt_mask = tgt_mask.to(tgt.device)
         output = self.transformer.decoder(tgt.transpose(0, 1),
                         memory.transpose(0, 1),
                         tgt_key_padding_mask=tgt_key_padding_mask,
                         memory_key_padding_mask=src_key_padding_mask,
-                        tgt_mask=self.transformer.generate_square_subsequent_mask(tgt.shape[1]))
+                        tgt_mask=tgt_mask)
         return self.out(output)
