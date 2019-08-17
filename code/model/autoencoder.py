@@ -8,6 +8,7 @@ from .transformer_model import TransformerModel
 from .encoder import Encoder
 from .decoder import Decoder
 from .sparsemax import Sparsemax
+from .modules import LSTMDecoder, l_n_norm
 
 
 class Autoencoder(TransformerModel):
@@ -48,6 +49,7 @@ class MultiLabelAutoencoder(TransformerModel):
         self.threshold_keyword = args.get('threshold_keyword', False)
         self.extraction_min_words = args.extraction_min_words
         self.keyword_ratio = args.keyword_ratio
+        self.use_reg_loss = args.get('use_reg_loss', False)
 
         self.net = transformer
         self.net.train()
@@ -58,11 +60,52 @@ class MultiLabelAutoencoder(TransformerModel):
         # self.reduce_dim = nn.Linear(bert_dim * 2, bert_dim)
         self.keyword_linear = nn.Linear(bert_dim, bert_dim)
 
+        self.use_bert = False
+        if not self.use_bert:
+            self.decoder = LSTMDecoder(self.net.bert.embeddings.word_embeddings)
+
         self.keyword_activation = args.get('keyword_activation', 'sparsemax')
         self.keyword_activation = {
-            'softmax': nn.Softmax(dim=-1),
-            'sparsemax': Sparsemax(dim=-1)
+            'softmax': self.softmax,
+            'sparsemax': self.sparsemax,
+            'sigmoid': self.sigmoid,
+            'saturating_sigmoid': self.saturating_sigmoid,
         }[self.keyword_activation.lower()]
+        self.loss_norm_n = args.get('loss_norm_n', 1)
+        self.reduce_dim = nn.Linear(bert_dim * 2, bert_dim)
+
+    def get_l_n_loss(self, x, lengths):
+        x = F.relu(x)
+        reg_loss = l_n_norm(x, n=self.loss_norm_n, dim=-1)
+        reg_loss = F.relu(reg_loss - self.extraction_min_words)
+        max_keyword_num = torch.max(torch.LongTensor([self.extraction_min_words]).to(lengths.device),
+                                    (lengths.float() * self.keyword_ratio).ceil().long())
+        max_limit_loss = F.relu(max_keyword_num.float() - l_n_norm(x, n=1, dim=-1))
+        reg_loss = reg_loss + max_limit_loss
+        return reg_loss.mean()
+
+    def keyword_activation_loss(self, x, lengths):
+        x = self.keyword_activation(x)
+        reg_loss = self.get_l_n_loss(x, lengths)
+        return x, reg_loss
+
+    def softmax(self, x):
+        x = F.softmax(x, dim=-1)
+        return x
+
+    def sparsemax(self, x):
+        mm = Sparsemax(dim=-1)
+        x = mm(x)
+        return x
+
+    def sigmoid(self, x):
+        x = torch.sigmoid(x)
+        return x
+
+    def saturating_sigmoid(self, x):
+        x = 1.2 * torch.sigmoid(x) - 0.1
+        x = x.clamp(0, 1)
+        return x
 
     def make_batch(self, *args, **kwargs):
         return make_bert_batch(*args, **kwargs)
@@ -99,6 +142,19 @@ class MultiLabelAutoencoder(TransformerModel):
             p = p * keyword_mask.float()
         return p
 
+    def mask_keyword(self, p, sentences):
+        # BV, BL
+        src = torch.FloatTensor([0]).to(p.device).view(1, 1, 1)
+        p = p.unsqueeze(1).expand(*sentences.shape, p.shape[-1])
+        temp = torch.full_like(p, 0)
+        sentences = sentences.unsqueeze(-1).expand(*sentences.shape, p.shape[-1])
+        temp = temp.scatter(dim=-1, index=sentences,
+                            src=p)
+        # BLV
+        p = temp.sum(dim=1)
+        p = F.normalize(p, p=1, dim=-1)
+        return p
+
     def forward(self, batch, **kwargs):
         sentences = batch.sentences
         targets = batch.targets
@@ -110,25 +166,37 @@ class MultiLabelAutoencoder(TransformerModel):
         encoder_out = self.net.bert(sentences, attention_mask=attention_mask)[0]
         encoder_out = self.pool(encoder_out, dim=1)  # BC
         encoder_out = self.net.cls(encoder_out)
-        keyword_prob = self.keyword_activation(encoder_out)
+        keyword_prob, reg_loss = self.keyword_activation_loss(encoder_out, lengths)
+        keyword_prob = self.mask_keyword(keyword_prob, sentences)
         keyword_prob_t = self.keyword_thresholding(keyword_prob, lengths)
         keyword_att = torch.matmul(keyword_prob_t, self.net.bert.embeddings.word_embeddings.weight)
 
         L = sentences.shape[1]
         keyword_att = self.keyword_linear(keyword_att)
-        keyword_att = keyword_att.unsqueeze(1).expand(-1, L, -1)
-        decoder_in = keyword_att + self.get_position_embeddings(sentences)
-        head_mask = self.get_head_mask()
-        decoder_out = self.net.bert.encoder(decoder_in, extended_attention_mask,
-                                            head_mask=head_mask)[0]
-
-        logits = self.net.cls(decoder_out)
+        if self.use_bert:
+            keyword_att = keyword_att.unsqueeze(1).expand(-1, L, -1)
+            decoder_in = keyword_att + self.get_position_embeddings(sentences)
+            head_mask = self.get_head_mask()
+            decoder_out = self.net.bert.encoder(decoder_in, extended_attention_mask,
+                                                head_mask=head_mask)[0]
+            logits = self.net.cls(decoder_out)
+        else:
+            targets = targets[:, 1:]  # remove cls
+            dec_input = sentences.clone().detach()
+            dec_input.masked_scatter_(sentences == self.tokenizer.sep_id,
+                                      torch.full_like(dec_input, self.tokenizer.pad_id))
+            dec_input = dec_input[:, :-1]  # remove sep
+            dec_input = self.net.bert.embeddings.word_embeddings(dec_input)
+            dec_input = torch.cat((dec_input, keyword_att.unsqueeze(1).expand_as(dec_input)), dim=-1)
+            dec_input = self.reduce_dim(dec_input)
+            logits = self.decoder(keyword_att, dec_input, embedded=True)
 
         with torch.no_grad():
             stats = {
-                'keyword_lhalf': ((keyword_prob ** 2).sum(dim=-1) ** 0.5).mean().item(),
+                'keyword_l2': ((keyword_prob ** 2).sum(dim=-1) ** 0.5).mean().item(),
                 'keyword_l1': keyword_prob.sum(dim=-1).mean().item(),
                 'keyword>0.1': (keyword_prob > 0.1).sum(dim=-1).float().mean().item(),
+                'keyword>0': (keyword_prob > 0).sum(dim=-1).float().mean().item(),
             }
             if self.threshold_keyword:
                 stats = {
@@ -139,4 +207,7 @@ class MultiLabelAutoencoder(TransformerModel):
             keywords = keywords[:, :10]
             scores = scores[:, :10]
 
-        return logits, targets, None, stats, (keywords, scores)
+        if not self.use_reg_loss:
+            reg_loss = None
+
+        return logits, targets, reg_loss, stats, (keywords, scores)

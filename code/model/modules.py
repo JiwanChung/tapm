@@ -18,19 +18,28 @@ class BinaryLayer(torch.autograd.Function):
         return grad_output.clamp(0, 1)
 
 
+class CutInfLayer(torch.autograd.Function):
+    def forward(self, net_input):
+        return net_input
+
+    def backward(self, grad_output):
+        grad_output[grad_output == float('inf')] = 0
+        return grad_output
+
+
 def saturating_sigmoid(x):
     return (1.2 * torch.sigmoid(x) - 0.1).clamp(0, 1)
 
 
-def l_n_norm(x, dim=0, n=1, normalize=False):
+def l_n_norm(x, dim=0, n=1, normalize=True):
     if n > 0:
-        x = torch.abs(x)
+        f = CutInfLayer()
+        x = f(x)
         x = (x ** n).sum(dim=dim)
         if normalize:
             x = x ** (1 / n)
         return x
     elif n == 0:
-        x = torch.abs(x)
         f = BinaryLayer()
         x = f(x)
         return x.sum(dim=dim)
@@ -51,11 +60,12 @@ class LSTMDecoder(nn.Module):
     def out(self, x):
         return torch.matmul(x, self.wte.weight.t())
 
-    def forward(self, h, targets):
+    def forward(self, h, targets, embedded=False):
         # BC -> NBC
         h = h.unsqueeze(0).expand(self.num_layers, -1, -1).contiguous()
         # BL -> BLC
-        targets = self.wte(targets)
+        if not embedded:
+            targets = self.wte(targets)
         logits, _ = self.decode(targets, h)
         return logits
 

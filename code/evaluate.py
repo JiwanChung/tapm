@@ -86,8 +86,8 @@ def evaluate_base(args, model, loss_fn, tokenizer, dataloaders,
                                 string = f"keywords:{keyword}"
                             if args.eval_generate:
                                 hypo = decode_tensor(tokenizer, hypos[i], remove_past_sep=True)
-                                string += "\nhypo: {hypo}"
-                            string += "\ntarget: {target}"
+                                string += f"\nhypo: {hypo}"
+                            string += f"\ntarget: {target}"
                             logger(f"eval/keyword/epoch{epoch}", string, (n_step - 1) * B + i)
 
     return epoch_stats, keywords, None
