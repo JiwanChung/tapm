@@ -35,3 +35,13 @@ def move_device(batch, to=-1):
                     li.append(t)
             batch[key] = li
     return batch
+
+
+def remove_cls_sep(x, tokenizer):
+    targets = x[:, 1:]  # remove cls
+    dec_input = x.clone().detach()
+    dec_input.masked_scatter_(x == tokenizer.sep_id,
+                                torch.full_like(dec_input, tokenizer.pad_id))
+    dec_input = dec_input[:, :-1]  # remove sep
+
+    return dec_input, targets

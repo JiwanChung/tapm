@@ -9,6 +9,7 @@ from .nn_transformer import Transformer
 
 class TransformerKeywordLM(TransformerModel):
     transformer_name = 'bert'
+    update_h = False
 
     @classmethod
     def get_args(cls, args):
@@ -37,7 +38,7 @@ class TransformerKeywordLM(TransformerModel):
         return wte
 
     def get_att_mask(self, x):
-        return x != self.tokenizer.pad_id
+        return x == self.tokenizer.pad_id
 
     def out(self, x):
         return torch.matmul(x, self.wte.weight.t())
@@ -47,11 +48,8 @@ class TransformerKeywordLM(TransformerModel):
         sentences = batch.sentences
         targets = batch.targets
 
-        keywords_embed = self.embedding(keywords)
-        sentences_embed = self.embedding(sentences)
-
         h, src_mask = self.encode(keywords)
-        logits = self.decode(sentences, h, src_mask)
+        logits, _ = self.decode(sentences, h, src_mask)
 
         if self.training:
             keywords = None  # monkey-patch... refers to train.py and evaluate.py
@@ -74,4 +72,5 @@ class TransformerKeywordLM(TransformerModel):
                         tgt_key_padding_mask=tgt_key_padding_mask,
                         memory_key_padding_mask=src_key_padding_mask,
                         tgt_mask=tgt_mask)
-        return self.out(output)
+        output = output.transpose(0, 1)
+        return self.out(output), memory

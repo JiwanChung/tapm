@@ -8,6 +8,7 @@ from .transformer_model import TransformerModel
 
 class LSTMKeywordLM(TransformerModel):
     transformer_name = 'bert'
+    update_h = True
 
     @classmethod
     def get_args(cls, args):
@@ -45,9 +46,8 @@ class LSTMKeywordLM(TransformerModel):
         sentences = batch.sentences
         targets = batch.targets
         h = self.encode(keywords)
-        s = self.wte(sentences)
 
-        logits, _ = self.decode(s, h)
+        logits, _ = self.decode(sentences, h)
         if self.training:
             keywords = None  # monkey-patch... refers to train.py and evaluate.py
         return logits, targets, None, None, keywords
@@ -57,10 +57,13 @@ class LSTMKeywordLM(TransformerModel):
         if self.use_keyword:
             k = self.wte(keywords)
             _, h_k = self.encoder(k)
-        return h_k
+        return h_k.transpose(0, 1)
 
     def decode(self, s, h):
+        h = h.transpose(0, 1)
+        s = self.wte(s)
         o, h = self.decoder(s, h)
         o = self.out(o)
+        h = h.transpose(0, 1)
 
         return o, h

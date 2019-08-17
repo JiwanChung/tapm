@@ -25,17 +25,17 @@ class Sampler(nn.Module):
         with torch.no_grad():
             B = keywords.shape[0]
             res = []
-            h_0 = self.model.encode(keywords)
+            inputs = self.model.encode(keywords)
             for i in range(B):
-                res.append(self.sample_single_source(h_0[:, i]))
+                single_input = [t[i].unsqueeze(0) if torch.is_tensor(t) else t for t in inputs]
+                res.append(self.sample_single_source(*single_input))
         return res
 
-    def sample_single_source(self, h_0):
+    def sample_single_source(self, h_0, *args):
         hypo = torch.Tensor([self.model.tokenizer.cls_id]).long().to(h_0.device).unsqueeze(0)  # 11
-        h = h_0.unsqueeze(1)
+        h = h_0
         for i in range(1, self.max_target_len):
-            s = self.model.wte(hypo)  # KL
-            logits, h = self.model.decode(s, h.contiguous())  # KL
+            logits, h = self.model.decode(hypo, h.contiguous(), *args)  # KL
             logits = logits[:, -1]  # KV (get last token)
             probs = F.softmax(logits, dim=-1)  # KV
             idx = self.truncate(probs)  # KV -> K'2 (K, V)
@@ -45,7 +45,8 @@ class Sampler(nn.Module):
             idx = idx[sample]  # N2
             hypo = hypo[idx[:, 0]]
             tokens = idx[:, 1]
-            h = h[:, idx[:, 0]]  # (layers)NC
+            if self.model.update_h:
+                h = h[:, idx[:, 0]]  # (layers)NC
             hypo = torch.cat((hypo, tokens.unsqueeze(-1)), dim=1)
 
         return hypo[probs.argmax(dim=-1)]

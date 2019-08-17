@@ -4,6 +4,7 @@ import torch.nn.functional as F
 
 from data.batcher import make_autoencoder_batch, make_bert_batch
 
+from tensor_utils import remove_cls_sep
 from .transformer_model import TransformerModel
 from .encoder import Encoder
 from .decoder import Decoder
@@ -181,11 +182,7 @@ class MultiLabelAutoencoder(TransformerModel):
                                                 head_mask=head_mask)[0]
             logits = self.net.cls(decoder_out)
         else:
-            targets = targets[:, 1:]  # remove cls
-            dec_input = sentences.clone().detach()
-            dec_input.masked_scatter_(sentences == self.tokenizer.sep_id,
-                                      torch.full_like(dec_input, self.tokenizer.pad_id))
-            dec_input = dec_input[:, :-1]  # remove sep
+            dec_input, target = remove_cls_sep(targets, self.tokenizer)
             dec_input = self.net.bert.embeddings.word_embeddings(dec_input)
             dec_input = torch.cat((dec_input, keyword_att.unsqueeze(1).expand_as(dec_input)), dim=-1)
             dec_input = self.reduce_dim(dec_input)
