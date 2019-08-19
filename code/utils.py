@@ -125,3 +125,15 @@ def wait_for_key(key="y"):
             print("terminating process")
         else:
             print(f"key {key} unrecognizable")
+
+
+def remove_duplicate(li, key=lambda x: x):
+    keys = set([key(i) for i in li])
+    keys = {k: False for k in keys}
+    res = []
+    for i in li:
+        i_key = key(i)
+        if not keys[i_key]:
+            keys[i_key] = True
+            res.append(i)
+    return res

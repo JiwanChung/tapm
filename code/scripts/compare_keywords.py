@@ -32,11 +32,18 @@ def main():
         assert len(datum) == n, f"data length {len(datum)} does not match n {n}"
         data[name] = Counter(datum)
 
-    print("pairwise word set similarity")
+    '''
+    print("pairwise word set difference")
     for k1, k2 in product(data.keys(), data.keys()):
         if k1 != k2:
             diff = set(data[k1]) - set(data[k2])
-            print(f"{k1}-{k2}: {len(diff)}/{len(data[k1])}")
+            print(f"    {k1}-{k2}: {len(diff)}/{len(data[k1])}")
+    '''
+    print("pairwise word set similarity")
+    for (i1, k1), (i2, k2) in product(enumerate(data.keys()), enumerate(data.keys())):
+        if i1 < i2:
+            sim = set(data[k1]) & set(data[k2])
+            print(f"    {k1}-{k2}: {len(sim)}/{len(data[k1])}")
 
     total_path = keyword_path / 'keywords_total.json'
     if total_path.is_file():
@@ -49,13 +56,14 @@ def main():
         with open(total_path, 'w') as f:
             json.dump(whole, f, indent=4)
     total = sum(whole.values())
+    print("\n")
     print("left words")
     for k in data.keys():
         left = 0
         for word in data[k]:
             if word in whole:
                 left += whole[word]
-        print(f"{k}: {left}/{total}({left/total})")
+        print(f"    {k}: {left}/{total}({left/total:.3f})")
 
 
 if __name__ == "__main__":
