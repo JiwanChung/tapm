@@ -6,6 +6,8 @@ from collections import defaultdict
 from tensor_utils import move_device
 from data.batcher import decode_tensor
 from sampler import get_sampler
+from utils import jsonl_to_json
+from metric import Metric
 
 
 def evaluate(args, model, loss_fn, optimizer, tokenizer, dataloaders,
@@ -33,6 +35,7 @@ def evaluate_base(args, model, loss_fn, tokenizer, dataloaders,
     model.eval()
     n_step = 0
     dataloader = dataloaders['val']
+    metric = Metric(args)
     with torch.no_grad():
         for batch in tqdm(dataloader, total=len(dataloader)):
             batch = move_device(batch,
@@ -61,34 +64,50 @@ def evaluate_base(args, model, loss_fn, tokenizer, dataloaders,
                         'nll_loss': loss.item()}}
                 if added_stats is not None:
                     stats = {**stats, **added_stats}
+
+                if args.eval_generate:
+                    hypos = logits.argmax(dim=-1)
+                    sampler = get_sampler(args, model)
+                    hypos = sampler(keywords)
+                    score_stats = []
+                    for i in range(B):
+                        target = decode_tensor(tokenizer, batch['targets'][i], remove_past_sep=True)
+                        hypo = decode_tensor(tokenizer, hypos[i], remove_past_sep=True)
+                        score_stats.append(metric.calculate(hypo, target))
+                    score_stats = jsonl_to_json(score_stats)
+                    score_stats = {k: sum(v) / len(v) for k, v in score_stats.items()}
+                    stats = {**stats, **score_stats}
+
                 for k, v in stats.items():
                     epoch_stats[k] = epoch_stats[k] + B * v
                 epoch_stats['num'] = epoch_stats['num'] + B
+
                 # log text for batch 1 ~ 5
                 if n_step <= 5:
                     hypos = logits.argmax(dim=-1)
-                    if args.eval_generate:
-                        sampler = get_sampler(args, model)
-                        hypos = sampler(keywords)
+                    sampler = get_sampler(args, model)
+                    hypos = sampler(keywords)
 
+                    has_scores = False
                     if keywords is not None:
-                        has_scores = False
                         if isinstance(keywords, tuple):
                             keywords, scores = keywords
                             has_scores = True
-                        for i in range(B):
+                    for i in range(B):
+                        target = decode_tensor(tokenizer, batch['targets'][i], remove_past_sep=True)
+                        string = ""
+                        if keywords is not None:
                             keyword = decode_tensor(tokenizer, keywords[i], remove_past_sep=True)
-                            target = decode_tensor(tokenizer, batch['targets'][i], remove_past_sep=True)
                             if has_scores:
                                 score = '/'.join(["%.2f" % j for j in scores[i].detach().cpu().numpy()])
-                                string = f"keywords:{[f'({i}/{j})' for i, j in zip(keyword.split(), score.split('/'))]}"
+                                string += f"keywords:{[f'({i}/{j})' for i, j in zip(keyword.split(), score.split('/'))]}"
                             else:
-                                string = f"keywords:{keyword}"
-                            if args.eval_generate:
-                                hypo = decode_tensor(tokenizer, hypos[i], remove_past_sep=True)
-                                string += f"\nhypo: {hypo}"
-                            string += f"\ntarget: {target}"
-                            logger(f"eval/keyword/epoch{epoch}", string, (n_step - 1) * B + i)
+                                string += f"keywords:{keyword}"
+                        if args.eval_generate:
+                            hypo = decode_tensor(tokenizer, hypos[i], remove_past_sep=True)
+                            string += f"\nhypo: {hypo}"
+                        string += f"\ntarget: {target}"
+                        logger(f"eval/keyword/epoch{epoch}", string, (n_step - 1) * B + i)
 
     return epoch_stats, keywords, None
 
@@ -113,14 +132,7 @@ def evaluate_mask(args, model, loss_fn, tokenizer, dataloaders, logger, print_ou
                 epoch_stats[k] = epoch_stats[k] + B * v
             epoch_stats['num'] = epoch_stats['num'] + B
             # log text for batch 1 ~ 5
-            if n_step <= 5:
-                for i in range(B):
-                    keywords = decode_tensor(tokenizer, ids[i])
-                    score = '/'.join(["%.2f" % j for j in scores[i].detach().cpu().numpy()])
-                    target = decode_tensor(tokenizer, targets[i])
-                    string = f"keywords:{[f'({i}/{j})' for i, j in zip(keywords.split(), score.split('/'))]}\ntarget:{target}"
-                    logger(f"eval/keyword/epoch{epoch}", string, (n_step - 1) * B + i)
-            if print_output:
+            if n_step <= 5 or print_output:
                 for i in range(B):
                     keywords = decode_tensor(tokenizer, ids[i])
                     score = '/'.join(["%.2f" % j for j in scores[i].detach().cpu().numpy()])

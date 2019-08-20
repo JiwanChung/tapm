@@ -1,3 +1,4 @@
+import re
 from collections import defaultdict
 from datetime import datetime
 
@@ -77,7 +78,7 @@ def get_dirname_from_args(args):
         if isinstance(val, float) and (not key == 'learning_rate'):
             val = '{:.2f}'.format(val)
         else:
-            val = str(val)
+            val = re.sub('[,\W-]+', '_', str(val))
         dirname += val
 
     return dirname[1:]
