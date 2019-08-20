@@ -27,6 +27,7 @@ def train(args, model, loss_fn, optimizer, tokenizer, dataloaders, logger):
             logits, targets, reg_loss, added_stats, keywords = model(batch,
                                                                      batch_per_epoch=args.batch_per_epoch['train'])
             loss, stats = loss_fn(logits, targets)
+            import ipdb; ipdb.set_trace()  # XXX DEBUG
 
             if loss is not None:
                 if reg_loss is not None:

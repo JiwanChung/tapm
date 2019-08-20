@@ -40,10 +40,20 @@ def get_keyword_path(data_path, key, dir_name=None, args=None):
 
 
 def jsonl_to_json(x):
-    keys = x[0].keys()
+    def get_key(t):
+        if isinstance(t, dict):
+            return t.keys()
+        else:
+            return get_key(t[0])
+    keys = get_key(x)
+    def merge_key(t, key):
+        if isinstance(t[0], dict):
+            return [i[key] for i in t]
+        else:
+            return [merge_key(i, key) for i in t]
     res = {}
     for key in keys:
-        res[key] = [i[key] for i in x]
+        res[key] = merge_key(x, key)
     return res
 
 

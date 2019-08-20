@@ -1,5 +1,6 @@
 import torch
 from torch import nn
+import torch.nn.functional as F
 
 
 class IdentityModule(nn.Module):
@@ -74,3 +75,75 @@ class LSTMDecoder(nn.Module):
         o = self.out(o)
 
         return o, h
+
+
+class GRU(nn.Module):
+    '''
+    batch_first GRU
+    '''
+    def __init__(self, num_layers, in_dim, out_dim, dropout=0.1, bidirectional=False):
+        super(GRU, self).__init__()
+
+        self.num_layers = num_layers
+        self.in_dim = in_dim
+        self.out_dim = out_dim
+        self.decoder = nn.GRU(self.in_dim, self.out_dim, self.num_layers,
+                              dropout=dropout,
+                              bidirectional=bidirectional,
+                              batch_first=True)
+
+    def init_hiddens(self, sentences):
+        B = sentences.shape[0]
+
+        if isinstance(self.decoder, nn.LSTM):
+            h = (sentences.new_zeros(B, self.num_layers, self.out_dim).float(),
+                    sentences.new_zeros(B, self.num_layers, self.out_dim).float())
+            c = h[0].clone().detach()
+        else:
+            h = sentences.new_zeros(B, self.num_layers, self.out_dim).float()
+            c = h.clone().detach()
+        return h, c
+
+    @staticmethod
+    def transpose(h):
+        if isinstance(h, tuple):
+            h = [i.transpose(0, 1) for i in h]
+        else:
+            h = h.transpose(0, 1)
+        return h
+
+    def forward(self, s, h):
+        h = self.transpose(h)
+        o, h = self.decoder(s, h)
+        h = self.transpose(h)  # BLC, BNC
+        return o, h
+
+
+class Attention(nn.Module):
+    """
+    Applies an attention mechanism on the output features from the decoder.
+    """
+
+    def __init__(self, dim):
+        super(Attention, self).__init__()
+        self.dim = dim
+        self.linear1 = nn.Linear(dim * 2, dim)
+        self.linear2 = nn.Linear(dim, 1, bias=False)
+
+    def forward(self, hidden_state, encoder_outputs):
+        """
+        Arguments:
+            hidden_state {Variable} -- batch_size x dim
+            encoder_outputs {Variable} -- batch_size x seq_len x dim
+        Returns:
+            Variable -- context vector of size batch_size x dim
+        """
+        batch_size, seq_len, _ = encoder_outputs.size()
+        hidden_state = hidden_state.unsqueeze(1).repeat(1, seq_len, 1)
+        inputs = torch.cat((encoder_outputs, hidden_state),
+                           2).view(-1, self.dim * 2)
+        o = self.linear2(torch.tanh(self.linear1(inputs)))
+        e = o.view(batch_size, seq_len)
+        alpha = F.softmax(e, dim=1)
+        context = torch.bmm(alpha.unsqueeze(1), encoder_outputs).squeeze(1)
+        return context
