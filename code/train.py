@@ -19,6 +19,8 @@ def train(args, model, loss_fn, optimizer, tokenizer, dataloaders, logger):
         print(f"training {epoch}th epoch")
         epoch_stats = defaultdict(float)
         model.train()
+        if hasattr(model, 'epoch_update'):
+            model.epoch_update(epoch)
         for batch in tqdm(dataloader, total=len(dataloader)):
             optimizer.zero_grad()
             batch = move_device(batch, to=args.device)
@@ -55,7 +57,7 @@ def train(args, model, loss_fn, optimizer, tokenizer, dataloaders, logger):
                 epoch_stats['num'] = epoch_stats['num'] + B
 
                 # log lr
-                stats['lr'] = optimizer[0].get_lr()
+                stats['lr'] = optimizer.get_lr()
 
                 for name, val in stats.items():
                     logger(f"train/iters/{name}", val, n_step)

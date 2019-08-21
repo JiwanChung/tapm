@@ -33,8 +33,9 @@ class HybridDis(TransformerModel):
             setattr(self, feature, FeatureEncoder(getattr(self, f"{feature}_dim"), self.dim))
         self.encoder = nn.Linear(len(self.feature_names) * self.dim, self.dim)
         self.wte = nn.Embedding(self.vocab_size, self.dim)
-        self.rnn = GRU(1, 3 * self.dim, self.dim, dropout=self.dropout_ratio)
-        self.prev_encoder = PrevEncoder(self.dim)
+        self.context_dim = self.dim // 4
+        self.rnn = GRU(1, 2 * self.dim + self.context_dim, self.dim, dropout=self.dropout_ratio)
+        self.context_encoder = PrevEncoder(self.dim, self.context_dim)
         self.dropout = nn.Dropout(self.dropout_ratio)
 
         if self.share_in_out:
@@ -42,14 +43,19 @@ class HybridDis(TransformerModel):
         else:
             self.out = nn.Linear(self.dim, self.vocab_size)
         self.init_weights()
+        self.use_context = False
 
     def make_batch(self, *args, **kwargs):
         return make_feature_lm_batch(*args, **kwargs)
 
+    def epoch_update(self, epoch):
+        if epoch > 10:
+            self.context = True
+
     def init_weights(self):
         init_range = 0.1
         for feature in self.feature_names:
-            getattr(self, feature).weight.data.uniform_(-init_range, init_range)
+            getattr(self, feature).linear.weight.data.uniform_(-init_range, init_range)
         if self.share_in_out:
             self.out.bias.data.fill_(0)
             self.out.weight.data.uniform(-init_range, init_range)
@@ -96,7 +102,9 @@ class HybridDis(TransformerModel):
             hypo = hypo[:, 1:][probs.argmax(dim=-1)]
         else:
             sent = torch.stack(sent, 1).contiguous()
-        c = self.prev_encoder(h)
+        c = self.context_encoder(h)
+        if not self.use_context:
+            c = torch.full_like(c.detach(), 0)
         return c, sent, hypo
 
     def forward(self, batch, **kwargs):
@@ -135,10 +143,10 @@ class FeatureEncoder(nn.Module):
 
 
 class PrevEncoder(nn.Module):
-    def __init__(self, dim):
+    def __init__(self, in_dim, out_dim):
         super(PrevEncoder, self).__init__()
 
-        self.linear = nn.Linear(dim, dim)
+        self.linear = nn.Linear(in_dim, out_dim)
 
     def forward(self, h):
         # BLC

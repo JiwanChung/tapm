@@ -22,7 +22,7 @@ def get_optimizer(args, model, dataloaders):
     optimizer.scheduler = scheduler
 
     optimizer.grad_clip = args.get('grad_clip', 0.1)
-    optimizer.method = types.MethodType(clip_grad, optimizer)
+    optimizer.clip_grad = types.MethodType(clip_grad, optimizer)
 
     return optimizer
 
