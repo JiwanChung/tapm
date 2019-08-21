@@ -1,4 +1,5 @@
 import math
+import types
 
 import torch
 from torch import optim
@@ -18,8 +19,21 @@ def get_optimizer(args, model, dataloaders):
     optimizer = AdamW(optimizer_grouped_parameters, lr=args.learning_rate, eps=1e-08)
     scheduler = WarmupLinearSchedule(optimizer,
                                      warmup_steps=args.warmup_steps, t_total=t_total)
+    optimizer.scheduler = scheduler
 
-    return optimizer, scheduler
+    optimizer.grad_clip = args.get('grad_clip', 0.1)
+    optimizer.method = types.MethodType(clip_grad, optimizer)
+
+    return optimizer
+
+
+def clip_grad(optimizer):
+    if optimizer.grad_clip is not None:
+        for group in optimizer.param_groups:
+            for p in group['params']:
+                if p.grad is None:
+                    continue
+                p.grad.data.clamp_(-optimizer.grad_clip, optimizer.grad_clip)
 
 
 class WarmupLinearSchedule(optim.lr_scheduler.LambdaLR):

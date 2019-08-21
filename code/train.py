@@ -20,7 +20,7 @@ def train(args, model, loss_fn, optimizer, tokenizer, dataloaders, logger):
         epoch_stats = defaultdict(float)
         model.train()
         for batch in tqdm(dataloader, total=len(dataloader)):
-            optimizer[0].zero_grad()
+            optimizer.zero_grad()
             batch = move_device(batch, to=args.device)
             B = batch['sentences'].shape[0] if torch.is_tensor(batch['sentences']) else len(batch['sentences'])
             targets = batch['targets']
@@ -34,8 +34,9 @@ def train(args, model, loss_fn, optimizer, tokenizer, dataloaders, logger):
                 else:
                     final_loss = loss
                 final_loss.backward()
-                optimizer[0].step()
-                optimizer[1].step()
+                optimizer.clip_grad()
+                optimizer.step()
+                optimizer.scheduler.step()
                 n_step += 1
 
                 if reg_loss is not None:
