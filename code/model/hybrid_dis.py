@@ -10,6 +10,14 @@ from .modules import Attention, GRU
 from .transformer_model import TransformerModel
 
 
+'''
+currently, this implementation deviates from the original repo
+in the following regards:
+    1. BERT BPE vocab instead of whitespace split vocab
+    2. GRU instead of LSTM
+    3. An (deactivated) option to share in_out embeddings
+Aside from the above, I tried to closely follow the given details.
+'''
 class HybridDis(TransformerModel):
     transformer_name = 'bert'
     model_type = 'caption'
@@ -57,7 +65,7 @@ class HybridDis(TransformerModel):
         init_range = 0.1
         for feature in self.feature_names:
             getattr(self, feature).linear.weight.data.uniform_(-init_range, init_range)
-        if self.share_in_out:
+        if not self.share_in_out:
             self.out.bias.data.fill_(0)
             self.out.weight.data.uniform(-init_range, init_range)
 

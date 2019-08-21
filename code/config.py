@@ -19,6 +19,7 @@ config = {
     'sampling_method': 'nucleus',
     'sampling_k': 8,
     'sampling_p': 0.9,
+    'num_samples': 1,
 
     'learning_rate': 1e-5,
     'warmup_steps': 4000,
