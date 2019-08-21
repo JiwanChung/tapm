@@ -77,7 +77,7 @@ class HybridDis(TransformerModel):
             hypo = torch.cat((hypo, s.unsqueeze(-1)), dim=1)
             sent.append(logits)
         if sentences is None:
-            hypo = hypo[probs.argmax(dim=-1)]
+            hypo = hypo[:, 1:][probs.argmax(dim=-1)]
         else:
             sent = torch.stack(sent, 1).contiguous()
         c = self.prev_encoder(h)

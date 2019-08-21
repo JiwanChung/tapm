@@ -83,8 +83,7 @@ def evaluate_base(args, model, loss_fn, tokenizer, dataloaders,
                     def recurse(shape, *args, func=None):
                         if len(shape) > 0:
                             for i in range(shape[0]):
-                                args = [v[i] for v in args]
-                                recurse(shape[1:], *args, func=func)
+                                recurse(shape[1:], *list([v[i] if v is not None else v for v in args]), func=func)
                         else:
                             func(*args)
 
@@ -99,6 +98,8 @@ def evaluate_base(args, model, loss_fn, tokenizer, dataloaders,
                 epoch_stats['num'] = epoch_stats['num'] + B
 
                 def log_text(targets, hypos, keywords=None):
+                    nonlocal text_logging_step
+
                     target = decode_tensor(tokenizer, targets, remove_past_sep=True)
                     string = ""
                     if keywords is not None:

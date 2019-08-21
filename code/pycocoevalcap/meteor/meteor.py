@@ -34,7 +34,7 @@ class Meteor:
         self.lock.acquire()
         for i in imgIds:
             assert(len(res[i]) == 1)
-            stat = self._stat(res[i][0], gts[i][0])
+            stat = self._stat(res[i][0], gts[i])
             eval_line += ' ||| {}'.format(stat)
 
         self.meteor_p.stdin.write('{}\n'.format(eval_line).encode())

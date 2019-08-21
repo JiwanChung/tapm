@@ -23,13 +23,13 @@ class Metric:
 
     def calculate(self, hypo, gts):
         data = defaultdict(float)
+        if not isinstance(gts, list):
+            gts = {str(1): [gts]}
+            hypo = {str(1): [hypo]}
+        else:
+            gts = {str(k): [v] for k, v in enumerate(gts)}
+            hypo = {str(k): [v] for k, v in enumerate(hypo)}
         for scorer, method in self.scorers:
-            if not isinstance(gts, list):
-                gts = {str(1): [gts]}
-                hypo = {str(1): [hypo]}
-            else:
-                gts = {str(k): [v] for k, v in enumerate(gts)}
-                hypo = {str(k): [v] for k, v in enumerate(hypo)}
             score, scores = scorer.compute_score(gts, hypo)
             if type(method) == list:
                 for sc, m in zip(score, method):
