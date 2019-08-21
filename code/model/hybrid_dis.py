@@ -23,6 +23,8 @@ class HybridDis(TransformerModel):
         self.dropout_ratio = args.get('dropout', 0.5)
         self.feature_names = args.get('feature_names',
                                       ['video', 'image', 'box'])
+        self.share_in_out = args.get('share_in_out',
+                                     False)
         self.max_target_len = args.max_target_len
         self.tokenizer = tokenizer
         self.vocab_size = len(tokenizer)
@@ -35,10 +37,24 @@ class HybridDis(TransformerModel):
         self.prev_encoder = PrevEncoder(self.dim)
         self.dropout = nn.Dropout(self.dropout_ratio)
 
+        if self.share_in_out:
+            self.out = self.out_shared
+        else:
+            self.out = nn.Linear(self.dim, self.vocab_size)
+        self.init_weights()
+
     def make_batch(self, *args, **kwargs):
         return make_feature_lm_batch(*args, **kwargs)
 
-    def out(self, x):
+    def init_weights(self):
+        init_range = 0.1
+        for feature in self.feature_names:
+            getattr(self, feature).weight.data.uniform_(-init_range, init_range)
+        if self.share_in_out:
+            self.out.bias.data.fill_(0)
+            self.out.weight.data.uniform(-init_range, init_range)
+
+    def out_shared(self, x):
         return torch.matmul(x, self.wte.weight.t())
 
     def run_token(self, features, s, h, c):
