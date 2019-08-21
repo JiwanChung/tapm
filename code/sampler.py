@@ -1,27 +1,34 @@
-# TODO: implement top-k sampling, nucleus sampling, etc.
+from munch import Munch
+
 import torch
 from torch import nn
 import torch.nn.functional as F
 
 
 def get_sampler(args, model):
-    return {
+    sampler =  {
         'greedy': GreedySampler,
         'topk': TopKSampler,
         'nucleus': NucleusSampler
-    }[args.sampling_method](args, model)
+    }[args.sampling_method](args)
+
+    sample_class = CaptionSampler if hasattr(model, 'model_type') and \
+        model.model_type == 'caption' else Sampler
+    return sample_class(args, model, sampler)
 
 
 class Sampler(nn.Module):
-    def __init__(self, args, model):
+    def __init__(self, args, model, sampler):
         super(Sampler, self).__init__()
 
         self.model = model
         self.max_target_len = args.max_target_len
         self.num_samples = args.get('num_samples', 1)
+        self.truncate = sampler
 
     def forward(self, keywords):
-        keywords = keywords.detach()
+        if torch.is_tensor(keywords):
+            keywords = keywords.detach()
         with torch.no_grad():
             B = keywords.shape[0]
             res = []
@@ -52,13 +59,53 @@ class Sampler(nn.Module):
         return hypo[probs.argmax(dim=-1)]
 
 
-class TopKSampler(Sampler):
-    def __init__(self, args, model):
-        super(TopKSampler, self).__init__(args, model)
+class CaptionSampler(nn.Module):
+    def __init__(self, args, model, sampler):
+        super(CaptionSampler, self).__init__()
 
+        self.model = model
+        self.max_target_len = args.max_target_len
+        self.num_samples = args.get('num_samples', 1)
+        self.truncate = sampler
+
+    def forward(self, batch):  # we only use features
+        video = batch.video
+        B, V = video.shape[:2]
+        res = []
+        with torch.no_grad():
+            for i in range(B):
+                vid = []
+                for v in range(V):
+                    features = {k: val[i, v].unsqueeze(0) for k, val \
+                                in {f: getattr(batch, f) for f \
+                                    in self.model.feature_names}.items()}
+                    _, c = self.model.rnn.init_hiddens(features['video'])
+                    c, _, hypo = self.model.run_video(features, c, v,
+                                                      self.max_target_len,
+                                                      sampler=self.sample_token)
+                    vid.append(hypo)
+                res.append(vid)
+        return res
+
+    def sample_token(self, logits, hypo):
+        logits = logits[:, -1]  # KV (get last token)
+        probs = F.softmax(logits, dim=-1)  # KV
+        idx = self.truncate(probs)  # KV -> K'2 (K, V)
+        probs = probs[idx[:, 0], idx[:, 1]]  # K'
+        probs = probs / probs.sum(dim=-1, keepdim=True)  # renormalize
+        sample = torch.multinomial(probs, self.num_samples)  # N
+        idx = idx[sample]  # N2
+        hypo = hypo[idx[:, 0]]
+        tokens = idx[:, 1]
+        # hypo = torch.cat((hypo, tokens.unsqueeze(-1)), dim=1)
+        return tokens, probs
+
+
+class TopKSampler:
+    def __init__(self, args):
         self.k = args.get('sampling_k', 10)
 
-    def truncate(self, probs):
+    def __call__(self, probs):
         # KV
         V = probs.shape[1]
         idx = probs.contiguous().view(-1).topk(self.k, dim=-1)[1]
@@ -67,19 +114,15 @@ class TopKSampler(Sampler):
 
 
 class GreedySampler(TopKSampler):
-    def __init__(self, args, model):
-        super(GreedySampler, self).__init__(args, model)
-
+    def __init__(self, args):
         self.k = 1
 
 
-class NucleusSampler(Sampler):
-    def __init__(self, args, model):
-        super(NucleusSampler, self).__init__(args, model)
-
+class NucleusSampler:
+    def __init__(self, args):
         self.p = args.get('sampling_p', 0.9)
 
-    def truncate(self, probs):
+    def __call__(self, probs):
         # get min card set with cumul prob > self.p
         V = probs.shape[1]
         probs, idx = probs.contiguous().view(-1).sort(dim=-1, descending=True)

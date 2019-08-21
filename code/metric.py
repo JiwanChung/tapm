@@ -22,8 +22,14 @@ class Metric:
         self.scorers = [v for k, v in scorers.items() if k in metrics]
 
     def calculate(self, hypo, gts):
-        data = {}
+        data = defaultdict(float)
         for scorer, method in self.scorers:
+            if not isinstance(gts, list):
+                gts = {str(1): [gts]}
+                hypo = {str(1): [hypo]}
+            else:
+                gts = {str(k): [v] for k, v in enumerate(gts)}
+                hypo = {str(k): [v] for k, v in enumerate(hypo)}
             score, scores = scorer.compute_score(gts, hypo)
             if type(method) == list:
                 for sc, m in zip(score, method):

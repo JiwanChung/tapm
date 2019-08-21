@@ -13,6 +13,7 @@ config = {
     'feature_names': None,
 
     'eval_generate': True,
+    'eval_metric': True,
     'max_sentence_tokens': 50,
     'max_target_len': 30,  # max bpe token num in target: 69
     'sampling_method': 'nucleus',

@@ -12,6 +12,7 @@ from .transformer_model import TransformerModel
 
 class HybridDis(TransformerModel):
     transformer_name = 'bert'
+    model_type = 'caption'
 
     def __init__(self, args, transformer, tokenizer):
         super(HybridDis, self).__init__()
@@ -22,6 +23,7 @@ class HybridDis(TransformerModel):
         self.dropout_ratio = args.get('dropout', 0.5)
         self.feature_names = args.get('feature_names',
                                       ['video', 'image', 'box'])
+        self.max_target_len = args.max_target_len
         self.tokenizer = tokenizer
         self.vocab_size = len(tokenizer)
 
@@ -39,44 +41,65 @@ class HybridDis(TransformerModel):
     def out(self, x):
         return torch.matmul(x, self.wte.weight.t())
 
+    def run_token(self, features, s, h, c):
+        features = OrderedDict(sorted(features.items()))  # canonical ordering
+        for feature in self.feature_names:
+            features[feature] = getattr(self, feature)(features[feature], h)
+        features = self.encoder(torch.cat(list(features.values()), dim=-1))
+        s = self.wte(s).unsqueeze(1)  # B1C
+        s = torch.cat((features, c, s), dim=-1)
+        o, h = self.rnn(s, h)
+        logits = self.out(o)  # BV
+        return h, c, logits
+
+    def run_video(self, features, c, v, L, sentences=None, sampler=None):
+        video = features['video']
+        B = video.shape[0]
+        empty = torch.full((B, self.vocab_size), float('-inf')).to(video.device)
+        sent = []
+        eos_flags = torch.LongTensor([0] * B).byte().to(video.device)
+        h, _ = self.rnn.init_hiddens(video)
+        s0 = sentences[:, v, 0] if sentences is not None \
+            else torch.Tensor([self.tokenizer.cls_id]).long().to(video.device)
+        s = s0
+        hypo = s0.unsqueeze(-1)
+        for w in range(L):
+            if eos_flags.all():
+                logits = empty.clone()
+            else:
+                h, c, logits = self.run_token(features, s, h, c)
+                if sentences is not None:  # training
+                    s = sentences[:, v, min(L - 1, w + 1)].clone()
+                    eos_flags = eos_flags | (sentences[:, v, min(L - 1, w + 1)] == self.tokenizer.sep_id)
+                else:
+                    s, probs = sampler(logits, hypo)
+                    eos_flags = eos_flags | (logits.argmax(dim=-1) == self.tokenizer.sep_id)
+            hypo = torch.cat((hypo, s.unsqueeze(-1)), dim=1)
+            sent.append(logits)
+        if sentences is None:
+            hypo = hypo[probs.argmax(dim=-1)]
+        else:
+            sent = torch.stack(sent, 1).contiguous()
+        c = self.prev_encoder(h)
+        return c, sent, hypo
+
     def forward(self, batch, **kwargs):
         # BVLC, BVL
-        sentences = batch.sentences
-        B, V, L = sentences.shape[:3]
-        outputs = []
-
-        def run(h, c, v, w):
-            features = OrderedDict({})
-            for feature in self.feature_names:
-                features[feature] = getattr(self, feature)(getattr(batch, feature)[:,v], h)
-            features = self.encoder(torch.cat(list(features.values()), dim=-1))
-            s = sentences[:,v,w].clone()
-            s = self.wte(s).unsqueeze(1)  # B1C
-            s = torch.cat((features, c, s), dim=-1)
-            o, h = self.rnn(s, h)
-            logits = self.out(o)  # BV
-            return h, c, logits
+        video = batch.video
+        B, V = video.shape[:2]
+        L = batch.sentences.shape[2] if hasattr(batch, 'sentences') else self.max_target_len
+        sent_gt = batch.sentences if hasattr(batch, 'sentences') else None
 
         res = []
-        eos_flags = torch.LongTensor([0] * B).byte().to(sentences.device)
-        empty = torch.zeros(B, self.vocab_size).to(sentences.device)
-        h, c = self.rnn.init_hiddens(sentences)
         for v in range(V):
-            sent = []
-            for w in range(L):
-                if eos_flags.all():
-                    logits = empty.clone()
-                else:
-                    h, c, logits = run(h, c, v, w)
-                    if self.training:
-                        eos_flags = eos_flags | (sentences[:, v, min(L - 1, w + 1)] == self.tokenizer.sep_id)
-                    else:
-                        eos_flags = eos_flags | (logits.argmax(dim=-1) == self.tokenizer.sep_id)
-                sent.append(logits)
-
-            c = self.prev_encoder(h)
-            res.append(torch.stack(sent, 1).contiguous())  # BLV
-        return torch.stack(res, 1).contiguous(), batch.targets, None, {}, None
+            features = {k: val[:, v] for k, val \
+                        in {f: getattr(batch, f) for f \
+                            in self.feature_names}.items()}
+            _, c = self.rnn.init_hiddens(features['video'])
+            c, sent, _ = self.run_video(features, c, v, L, sentences=sent_gt)
+            res.append(sent)  # BLV
+        del batch.sentences  # for generation
+        return torch.stack(res, 1).contiguous(), batch.targets, None, {}, batch
 
 
 class FeatureEncoder(nn.Module):

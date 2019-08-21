@@ -36,13 +36,14 @@ def evaluate_base(args, model, loss_fn, tokenizer, dataloaders,
     n_step = 0
     dataloader = dataloaders['val']
     metric = Metric(args)
+    text_logging_step = 0
     with torch.no_grad():
         for batch in tqdm(dataloader, total=len(dataloader)):
             batch = move_device(batch,
                                 to=args.device)
             B = batch['sentences'].shape[0] if torch.is_tensor(batch['sentences']) else len(batch['sentences'])
             targets = batch['targets']
-            logits, targets, reg_loss, added_stats, keywords = model(batch,
+            logits, targets, reg_loss, added_stats, sampler_input = model(batch,
                                                                      batch_per_epoch=args.batch_per_epoch['train'])
             loss, stats = loss_fn(logits, targets)
 
@@ -65,15 +66,30 @@ def evaluate_base(args, model, loss_fn, tokenizer, dataloaders,
                 if added_stats is not None:
                     stats = {**stats, **added_stats}
 
-                if args.eval_generate:
+                if args.eval_metric:
                     hypos = logits.argmax(dim=-1)
                     sampler = get_sampler(args, model)
-                    hypos = sampler(keywords)
+                    hypos = sampler(sampler_input)
                     score_stats = []
-                    for i in range(B):
-                        target = decode_tensor(tokenizer, batch['targets'][i], remove_past_sep=True)
-                        hypo = decode_tensor(tokenizer, hypos[i], remove_past_sep=True)
-                        score_stats.append(metric.calculate(hypo, target))
+
+                    def calc(target, hypo):
+                        if not (target == tokenizer.pad_id).all():
+                            target = decode_tensor(tokenizer, target, remove_past_sep=True)
+                            hypo = decode_tensor(tokenizer, hypo, remove_past_sep=True)
+                            score_stats.append(metric.calculate(hypo, target))
+
+                            return target, hypo
+
+                    def recurse(shape, *args, func=None):
+                        if len(shape) > 0:
+                            for i in range(shape[0]):
+                                args = [v[i] for v in args]
+                                recurse(shape[1:], *args, func=func)
+                        else:
+                            func(*args)
+
+                    recurse(batch.targets.shape[:-1], batch.targets, hypos, func=calc)
+
                     score_stats = jsonl_to_json(score_stats)
                     score_stats = {k: sum(v) / len(v) for k, v in score_stats.items()}
                     stats = {**stats, **score_stats}
@@ -82,34 +98,36 @@ def evaluate_base(args, model, loss_fn, tokenizer, dataloaders,
                     epoch_stats[k] = epoch_stats[k] + B * v
                 epoch_stats['num'] = epoch_stats['num'] + B
 
+                def log_text(targets, hypos, keywords=None):
+                    target = decode_tensor(tokenizer, targets, remove_past_sep=True)
+                    string = ""
+                    if keywords is not None:
+                        if isinstance(keywords, tuple):
+                            keywords, scores = keywords
+                            keyword = decode_tensor(tokenizer, keywords, remove_past_sep=True)
+                            score = '/'.join(["%.2f" % j for j in scores.detach().cpu().numpy()])
+                            string += f"keywords:{[f'({i}/{j})' for i, j in zip(keyword.split(), score.split('/'))]}"
+                        else:
+                            keyword = decode_tensor(tokenizer, keywords, remove_past_sep=True)
+                            string += f"keywords:{keyword}"
+                    hypo = decode_tensor(tokenizer, hypos, remove_past_sep=True)
+                    string += f"\nhypo: {hypo}"
+                    string += f"\ntarget: {target}"
+                    logger(f"eval/keyword/epoch{epoch}", string, text_logging_step)
+                    text_logging_step += 1
+
                 # log text for batch 1 ~ 5
                 if n_step <= 5:
                     hypos = logits.argmax(dim=-1)
                     sampler = get_sampler(args, model)
-                    hypos = sampler(keywords)
+                    hypos = sampler(sampler_input)
 
-                    has_scores = False
-                    if keywords is not None:
-                        if isinstance(keywords, tuple):
-                            keywords, scores = keywords
-                            has_scores = True
-                    for i in range(B):
-                        target = decode_tensor(tokenizer, batch['targets'][i], remove_past_sep=True)
-                        string = ""
-                        if keywords is not None:
-                            keyword = decode_tensor(tokenizer, keywords[i], remove_past_sep=True)
-                            if has_scores:
-                                score = '/'.join(["%.2f" % j for j in scores[i].detach().cpu().numpy()])
-                                string += f"keywords:{[f'({i}/{j})' for i, j in zip(keyword.split(), score.split('/'))]}"
-                            else:
-                                string += f"keywords:{keyword}"
-                        if args.eval_generate:
-                            hypo = decode_tensor(tokenizer, hypos[i], remove_past_sep=True)
-                            string += f"\nhypo: {hypo}"
-                        string += f"\ntarget: {target}"
-                        logger(f"eval/keyword/epoch{epoch}", string, (n_step - 1) * B + i)
+                    keywords = None
+                    recurse(batch.targets.shape[:-1], batch.targets, hypos, keywords, func=log_text)
 
-    return epoch_stats, keywords, None
+
+
+    return epoch_stats, sampler_input, None
 
 
 def evaluate_mask(args, model, loss_fn, tokenizer, dataloaders, logger, print_output=False, epoch=0):
