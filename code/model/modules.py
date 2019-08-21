@@ -92,17 +92,16 @@ class GRU(nn.Module):
                               bidirectional=bidirectional,
                               batch_first=True)
 
-    def init_hiddens(self, sentences):
-        B = sentences.shape[0]
+    def init_c(self, B, C, device=0):
+        return torch.zeros(B, self.num_layers, C).float().to(device)
 
+    def init_h(self, B, device=-1):
         if isinstance(self.decoder, nn.LSTM):
-            h = (sentences.new_zeros(B, self.num_layers, self.out_dim).float(),
-                    sentences.new_zeros(B, self.num_layers, self.out_dim).float())
-            c = h[0].clone().detach()
+            h = (torch.zeros(B, self.num_layers, self.out_dim).float().to(device),
+                    torch.zeros(B, self.num_layers, self.out_dim).float().to(device))
         else:
-            h = sentences.new_zeros(B, self.num_layers, self.out_dim).float()
-            c = h.clone().detach()
-        return h, c
+            h = torch.zeros(B, self.num_layers, self.out_dim).float().to(device)
+        return h
 
     @staticmethod
     def transpose(h):

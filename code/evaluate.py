@@ -126,7 +126,8 @@ def evaluate_base(args, model, loss_fn, tokenizer, dataloaders,
                     keywords = None
                     recurse(batch.targets.shape[:-1], batch.targets, hypos, keywords, func=log_text)
 
-
+    num = epoch_stats.pop('num')
+    epoch_stats = {k: v / num for k, v in epoch_stats.items()}
 
     return epoch_stats, sampler_input, None
 

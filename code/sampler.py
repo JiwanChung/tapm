@@ -79,7 +79,7 @@ class CaptionSampler(nn.Module):
                     features = {k: val[i, v].unsqueeze(0) for k, val \
                                 in {f: getattr(batch, f) for f \
                                     in self.model.feature_names}.items()}
-                    _, c = self.model.rnn.init_hiddens(features['video'])
+                    c = self.model.rnn.init_c(B, self.model.context_dim, device=video.device)
                     c, _, hypo = self.model.run_video(features, c, v,
                                                       self.max_target_len,
                                                       sampler=self.sample_token)

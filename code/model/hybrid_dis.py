@@ -80,11 +80,13 @@ class HybridDis(TransformerModel):
         empty = torch.full((B, self.vocab_size), float('-inf')).to(video.device)
         sent = []
         eos_flags = torch.LongTensor([0] * B).byte().to(video.device)
-        h, _ = self.rnn.init_hiddens(video)
+        h = self.rnn.init_h(B, device=video.device)
+        c = self.rnn.init_c(B, self.context_dim, device=video.device)
         s0 = sentences[:, v, 0] if sentences is not None \
             else torch.Tensor([self.tokenizer.cls_id]).long().to(video.device)
         s = s0
         hypo = s0.unsqueeze(-1)
+
         for w in range(L):
             if eos_flags.all():
                 logits = empty.clone()
@@ -95,7 +97,7 @@ class HybridDis(TransformerModel):
                     eos_flags = eos_flags | (sentences[:, v, min(L - 1, w + 1)] == self.tokenizer.sep_id)
                 else:
                     s, probs = sampler(logits, hypo)
-                    eos_flags = eos_flags | (logits.argmax(dim=-1) == self.tokenizer.sep_id)
+                    eos_flags = eos_flags | (logits.argmax(dim=-1) == self.tokenizer.pad_id)
             hypo = torch.cat((hypo, s.unsqueeze(-1)), dim=1)
             sent.append(logits)
         if sentences is None:
@@ -105,6 +107,7 @@ class HybridDis(TransformerModel):
         c = self.context_encoder(h)
         if not self.use_context:
             c = torch.full_like(c.detach(), 0)
+            c.requires_grad_(False)
         return c, sent, hypo
 
     def forward(self, batch, **kwargs):
@@ -119,7 +122,7 @@ class HybridDis(TransformerModel):
             features = {k: val[:, v] for k, val \
                         in {f: getattr(batch, f) for f \
                             in self.feature_names}.items()}
-            _, c = self.rnn.init_hiddens(features['video'])
+            c = self.rnn.init_c(B, self.context_dim, device=video.device)
             c, sent, _ = self.run_video(features, c, v, L, sentences=sent_gt)
             res.append(sent)  # BLV
         del batch.sentences  # for generation
