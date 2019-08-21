@@ -13,6 +13,7 @@ from .transformer_model import TransformerModel
 class HybridDis(TransformerModel):
     transformer_name = 'bert'
     model_type = 'caption'
+    use_keyword = False
 
     def __init__(self, args, transformer, tokenizer):
         super(HybridDis, self).__init__()

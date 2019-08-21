@@ -5,6 +5,8 @@ from data.batcher import make_bert_batch
 
 
 class TransformerModel(nn.Module):
+    use_keyword = True
+
     def make_batch(self, *args, **kwargs):
         return make_bert_batch(*args, **kwargs)
 

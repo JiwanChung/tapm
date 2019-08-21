@@ -18,6 +18,7 @@ def train(args, model, loss_fn, optimizer, tokenizer, dataloaders, logger):
     for epoch in range(args.max_epoch):
         print(f"training {epoch}th epoch")
         epoch_stats = defaultdict(float)
+        epoch_stats['num'] = 0
         model.train()
         if hasattr(model, 'epoch_update'):
             model.epoch_update(epoch)
@@ -63,7 +64,7 @@ def train(args, model, loss_fn, optimizer, tokenizer, dataloaders, logger):
                     logger(f"train/iters/{name}", val, n_step)
                 if args.log_text_every > 0 and \
                         ((n_step + 1) % args.log_text_every == 0):
-                    if keywords is not None:
+                    if keywords is not None and model.use_keyword:
                         if isinstance(keywords, tuple):
                             keywords, scores = keywords
                         for i in range(B):
@@ -80,8 +81,6 @@ def train(args, model, loss_fn, optimizer, tokenizer, dataloaders, logger):
         eval_stats, _, _ = evaluate(args, model, loss_fn, optimizer, tokenizer,
                                     dataloaders, logger, epoch=epoch)
 
-        num = eval_stats.pop('num')
-        eval_stats = {k: v / num for k, v in eval_stats.items()}
         for name, val in eval_stats.items():
             logger(f"eval/epoch/{name}", val, epoch)
 
