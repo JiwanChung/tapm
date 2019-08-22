@@ -76,8 +76,8 @@ def evaluate_base(args, model, loss_fn, tokenizer, dataloaders,
                         if not (target == tokenizer.pad_id).all():
                             target = decode_tensor(tokenizer, target, remove_past_sep=True)
                             hypo = decode_tensor(tokenizer, hypo, remove_past_sep=True)
-                            target = remove_sep(target, tokenizer.sep_id)
-                            hypo = remove_sep(hypo, tokenizer.sep_id)
+                            target = remove_sep(target, tokenizer.sep_token)
+                            hypo = remove_sep(hypo, tokenizer.sep_token)
                             score_stats.append(metric.calculate(hypo, target))
 
                             return target, hypo
