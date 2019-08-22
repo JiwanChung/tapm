@@ -216,8 +216,8 @@ def make_feature_lm_batch_with_keywords(tokenizer, data, keywords=None, **kwargs
         # tensor B*L
         sentences, lengths = pad(sentences, tokenizer.pad_id)
         keyword_mask = sentences.unsqueeze(-1).expand(-1, -1, keywords.shape[0]) == keywords.view(1, 1, -1)
-        keyword_mask = keyword_mask.long().sum(dim=1) > 0
-        keyword_mask = [i.squeeze() for i in keyword_mask.split(keyword_mask.shape[0], dim=0)]
+        keyword_mask = keyword_mask.long().sum(dim=1) > 0  # VN
+        keyword_mask = [i.squeeze() for i in keyword_mask.split(1, dim=0)]
         targets, _ = pad(targets, tokenizer.pad_id)
         return sentences, lengths, targets, keyword_mask
     sentences, lengths, targets, keyword_masks = zip(*[get_text(sentence) for sentence in batch_sentences])
@@ -229,7 +229,7 @@ def make_feature_lm_batch_with_keywords(tokenizer, data, keywords=None, **kwargs
     image = data['resnet152_2']
     image = pad_tensor(image, 0)
     video = pad_tensor(video, 0)
-    keyword_masks = pad_tensor(keyword_masks, 0).squeeze(1)
+    keyword_masks = pad_tensor(keyword_masks, 0)
 
     return {'sentences': sentences,
             'batch_lengths': batch_lengths,
