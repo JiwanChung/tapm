@@ -19,7 +19,7 @@ in the following regards:
 Aside from the above, I tried to closely follow the given details.
 '''
 class HybridDis(TransformerModel):
-    transformer_name = 'bert'
+    transformer_name = 'none'
     model_type = 'caption'
     use_keyword = False
 
@@ -67,7 +67,7 @@ class HybridDis(TransformerModel):
             getattr(self, feature).linear.weight.data.uniform_(-init_range, init_range)
         if not self.share_in_out:
             self.out.bias.data.fill_(0)
-            self.out.weight.data.uniform(-init_range, init_range)
+            self.out.weight.data.uniform_(-init_range, init_range)
 
     def out_shared(self, x):
         return torch.matmul(x, self.wte.weight.t())

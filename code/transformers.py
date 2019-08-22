@@ -19,8 +19,13 @@ def get_transformer(model_name):
     # tokenizing and numericalizing
     return {
         'bert': get_bert,
-        'gpt2': get_gpt2
+        'gpt2': get_gpt2,
+        'none': get_no_transformer,
     }[model_name.lower()]()
+
+
+def get_no_transformer():
+    return None, None
 
 
 def get_bert():

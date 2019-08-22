@@ -34,7 +34,7 @@ def save_ckpt(args, epoch, loss, model, tokenizer):
     torch.save(dt, ckpt_path)
 
 
-def get_model_ckpt(args):
+def get_model_ckpt(args, data):
     ckpt_available = args.ckpt_name is not None
     if ckpt_available:
         ckpt_paths = sorted(args.ckpt_path.glob(f'{args.ckpt_name}*'), reverse=False)
@@ -44,7 +44,7 @@ def get_model_ckpt(args):
         dt = torch.load(ckpt_path)
         args.update(dt['args'])
 
-    model, tokenizer = get_model(args)
+    model, tokenizer = get_model(args, data)
 
     if ckpt_available:
         model.load_state_dict(dt['model'])

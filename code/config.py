@@ -11,6 +11,7 @@ config = {
     'extraction_threshold': 1,
     'extraction_min_words': 2,
     'feature_names': None,
+    'max_vocab': None,
 
     'eval_generate': True,
     'eval_metric': True,

@@ -27,11 +27,11 @@ def add_models():
                     model_dict[underscore(str(member.__name__))] = member
 
 
-def get_model(args):
+def get_model(args, data):
     model = model_dict[args.model]
     if hasattr(model, 'get_args'):
         args = model.get_args(args)
-    return model.build(args)
+    return model.build(args, data)
 
 
 add_models()

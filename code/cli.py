@@ -18,7 +18,7 @@ from ckpt import get_model_ckpt
 from loss import Loss
 from optimizer import get_optimizer
 from transformers import get_transformer
-from data.dataloader import get_dataloaders
+from data.dataloader import get_datasets, get_dataloaders
 from logger import Logger
 
 
@@ -51,14 +51,11 @@ class Cli:
 
     def prepare(self, **kwargs):
         args = self._default_args(**kwargs)
-        args, model, tokenizer, ckpt = get_model_ckpt(args)
+        datasets = get_datasets(args, args.data_path)
+        args, model, tokenizer, ckpt = get_model_ckpt(args, datasets['train'].data)
         model.to(args.device)
         args.update(kwargs)
-        '''
-        for k, v in args.data_path.items():  # temp fix for outdated models
-            args.data_path[k] = v.parent.parent / v.name[:-5]
-        '''
-        dataloaders = get_dataloaders(args, args.data_path, model.make_batch, tokenizer)
+        dataloaders = get_dataloaders(args, datasets, model.make_batch, tokenizer)
         args.batch_per_epoch = {}
         for key in dataloaders.keys():
             args.batch_per_epoch[key] = \
