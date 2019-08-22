@@ -151,4 +151,4 @@ def remove_duplicate(li, key=lambda x: x):
 
 
 def remove_sep(string, sep='[SEP]'):
-    return string[:string.find[sep]].strip()
+    return string[:string.find(sep)].strip()
