@@ -4,22 +4,22 @@ import torch
 from torch import nn
 import torch.nn.functional as F
 
-from data.batcher import make_feature_lm_batch
+from data.batcher import make_feature_lm_batch_with_keywords
 
 from .modules import Attention, GRU
+from .scn_rnn import SCNLSTM
 from .transformer_model import TransformerModel
 
 
 '''
 currently, this implementation deviates from the original repo
 in the following regards:
-    1. BERT BPE vocab instead of whitespace split vocab
-    2. GRU instead of LSTM
-    3. An (deactivated) option to share in_out embeddings
+    1. GRU instead of LSTM
+    2. An (deactivated) option to share in_out embeddings
 Aside from the above, I tried to closely follow the given details.
 '''
 class HybridDis(TransformerModel):
-    transformer_name = 'none'
+    transformer_name = 'none'  # assign transformer_name = 'bert' to use BPE
     model_type = 'caption'
     use_keyword = False
 
@@ -29,6 +29,7 @@ class HybridDis(TransformerModel):
         self.dim = args.get('dim', 512)
         self.video_dim = args.get('video_dim', 1024)
         self.image_dim = args.get('image_dim', 2048)
+        self.keyword_num = args.get('keyword_num', 1000)
         self.dropout_ratio = args.get('dropout', 0.5)
         self.feature_names = args.get('feature_names',
                                       ['video', 'image', 'box'])
@@ -43,7 +44,12 @@ class HybridDis(TransformerModel):
         self.encoder = nn.Linear(len(self.feature_names) * self.dim, self.dim)
         self.wte = nn.Embedding(self.vocab_size, self.dim)
         self.context_dim = self.dim // 4
-        self.rnn = GRU(1, 2 * self.dim + self.context_dim, self.dim, dropout=self.dropout_ratio)
+        num_layers = 1
+        self.rnn = {
+            'rnn': GRU(num_layers, 2 * self.dim + self.context_dim, self.dim, dropout=self.dropout_ratio),
+            'scn': SCNLSTM(2 * self.dim + self.context_dim, self.keyword_num, self.dim,
+                           num_layers, batch_first=True, dropout=self.dropout_ratio)
+        }[args.get('decoder_type', 'rnn')]
         self.context_encoder = PrevEncoder(self.dim, self.context_dim)
         self.dropout = nn.Dropout(self.dropout_ratio)
 
@@ -55,7 +61,7 @@ class HybridDis(TransformerModel):
         self.use_context = False
 
     def make_batch(self, *args, **kwargs):
-        return make_feature_lm_batch(*args, **kwargs)
+        return make_feature_lm_batch_with_keywords(*args, **kwargs)
 
     def epoch_update(self, epoch):
         if epoch > 10:
@@ -72,18 +78,18 @@ class HybridDis(TransformerModel):
     def out_shared(self, x):
         return torch.matmul(x, self.wte.weight.t())
 
-    def run_token(self, features, s, h, c):
+    def run_token(self, features, s, h, c, keyword):
         features = OrderedDict(sorted(features.items()))  # canonical ordering
         for feature in self.feature_names:
             features[feature] = getattr(self, feature)(features[feature], h)
         features = self.encoder(torch.cat(list(features.values()), dim=-1))
         s = self.wte(s).unsqueeze(1)  # B1C
         s = torch.cat((features, c, s), dim=-1)
-        o, h = self.rnn(s, h)
+        o, h = self.rnn(s, h, keyword=keyword)
         logits = self.out(o)  # BV
         return h, c, logits
 
-    def run_video(self, features, c, v, L, sentences=None, sampler=None):
+    def run_video(self, features, c, v, L, sentences=None, sampler=None, keyword=None):
         video = features['video']
         B = video.shape[0]
         empty = torch.full((B, self.vocab_size), float('-inf')).to(video.device)
@@ -100,7 +106,7 @@ class HybridDis(TransformerModel):
             if eos_flags.all():
                 logits = empty.clone()
             else:
-                h, c, logits = self.run_token(features, s, h, c)
+                h, c, logits = self.run_token(features, s, h, c, keyword=keyword)
                 if sentences is not None:  # training
                     s = sentences[:, v, min(L - 1, w + 1)].clone()
                     eos_flags = eos_flags | (sentences[:, v, min(L - 1, w + 1)] == self.tokenizer.sep_id)
@@ -132,7 +138,8 @@ class HybridDis(TransformerModel):
                         in {f: getattr(batch, f) for f \
                             in self.feature_names}.items()}
             c = self.rnn.init_c(B, self.context_dim, device=video.device)
-            c, sent, _ = self.run_video(features, c, v, L, sentences=sent_gt)
+            keyword = batch.keywords[:, v] if hasattr(batch, 'keywords') else None
+            c, sent, _ = self.run_video(features, c, v, L, sentences=sent_gt, keyword=keyword)
             res.append(sent)  # BLV
         del batch.sentences  # for generation
         return torch.stack(res, 1).contiguous(), batch.targets, None, {}, batch

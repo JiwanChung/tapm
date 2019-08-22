@@ -80,9 +80,11 @@ class CaptionSampler(nn.Module):
                                 in {f: getattr(batch, f) for f \
                                     in self.model.feature_names}.items()}
                     c = self.model.rnn.init_c(B, self.model.context_dim, device=video.device)
+                    keyword = batch.keywords[i, v] if hasattr(batch, 'keywords') else None
                     c, _, hypo = self.model.run_video(features, c, v,
                                                       self.max_target_len,
-                                                      sampler=self.sample_token)
+                                                      sampler=self.sample_token,
+                                                      keyword=keyword)
                     vid.append(hypo)
                 res.append(vid)
         return res

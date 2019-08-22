@@ -95,7 +95,7 @@ class GRU(nn.Module):
     def init_c(self, B, C, device=0):
         return torch.zeros(B, self.num_layers, C).float().to(device)
 
-    def init_h(self, B, device=-1):
+    def init_h(self, B, device=0):
         if isinstance(self.decoder, nn.LSTM):
             h = (torch.zeros(B, self.num_layers, self.out_dim).float().to(device),
                     torch.zeros(B, self.num_layers, self.out_dim).float().to(device))
@@ -111,7 +111,7 @@ class GRU(nn.Module):
             h = h.transpose(0, 1)
         return h
 
-    def forward(self, s, h):
+    def forward(self, s, h, **kwargs):
         h = self.transpose(h)
         o, h = self.decoder(s, h)
         h = self.transpose(h)  # BLC, BNC

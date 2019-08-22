@@ -11,7 +11,7 @@ class Metric:
     ngrams = ['bleu', 'meteor', 'rouge', 'meteor']
 
     def __init__(self, args):
-        metrics = args.get('metrics', ['meteor', 'bleu', 'rouge'])
+        metrics = args.get('metrics', ['meteor', 'bleu', 'rouge', 'cider'])
         self.tokenizer = PTBTokenizer()
         scorers = {
             'bleu': (Bleu(4), ["Bleu_1", "Bleu_2", "Bleu_3", "Bleu_4"]),
