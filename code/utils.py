@@ -148,3 +148,7 @@ def remove_duplicate(li, key=lambda x: x):
             keys[i_key] = True
             res.append(i)
     return res
+
+
+def remove_sep(string, sep='[SEP]'):
+    return string[:string.find[sep]].strip()

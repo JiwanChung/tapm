@@ -6,7 +6,7 @@ from collections import defaultdict
 from tensor_utils import move_device
 from data.batcher import decode_tensor
 from sampler import get_sampler
-from utils import jsonl_to_json
+from utils import jsonl_to_json, remove_sep
 from metric import Metric
 
 
@@ -76,6 +76,8 @@ def evaluate_base(args, model, loss_fn, tokenizer, dataloaders,
                         if not (target == tokenizer.pad_id).all():
                             target = decode_tensor(tokenizer, target, remove_past_sep=True)
                             hypo = decode_tensor(tokenizer, hypo, remove_past_sep=True)
+                            target = remove_sep(target, tokenizer.sep_id)
+                            hypo = remove_sep(hypo, tokenizer.sep_id)
                             score_stats.append(metric.calculate(hypo, target))
 
                             return target, hypo
