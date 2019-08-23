@@ -118,9 +118,9 @@ def load_keywords(args, path):
 
 
 def load_keyword_only(args, path):
-    path = path.parent.glob(f"keywords/{args.keyword_name}")
-    paths = list(sorted(list(path)))
-    assert len(paths) > 0, f"no keyword candidate for {path}"
+    paths = path.parent.glob(f"keywords/{args.keyword_name}*")
+    paths = list(sorted(list(paths)))
+    assert len(paths) > 0, f"no keyword candidate for {args.keyword_name}"
     path = paths[0]
     print(f"loading keyword from {path}")
     assert path.is_file(), f"keyword {path} is not a file"

@@ -72,24 +72,27 @@ class CaptionSampler(nn.Module):
         video = batch.video
         B, V = video.shape[:2]
         res = []
+        features = {k: val for k, val \
+                    in {f: getattr(batch, f) for f \
+                        in self.model.feature_names}.items()}
+        keywords, reg_loss = self.model.keyword_classifier(batch.keywords, features)
         with torch.no_grad():
             for i in range(B):
                 vid = []
                 for v in range(V):
-                    features = {k: val[i, v].unsqueeze(0) for k, val \
-                                in {f: getattr(batch, f) for f \
-                                    in self.model.feature_names}.items()}
+                    feature = {k: val[i, v].unsqueeze(0) for k, val in features.items()}
                     c = self.model.rnn.init_c(B, self.model.context_dim, device=video.device)
-                    keyword = batch.keywords[i, v] if hasattr(batch, 'keywords') else None
-                    c, _, hypo = self.model.run_video(features, c, v,
+                    keyword = keywords[:, v] if keywords is not None else None
+                    c, _, hypo = self.model.run_video(feature, c, v,
                                                       self.max_target_len,
+                                                      sentences=None,
                                                       sampler=self.sample_token,
                                                       keyword=keyword)
                     vid.append(hypo)
                 res.append(vid)
         return res
 
-    def sample_token(self, logits, hypo):
+    def sample_token(self, logits):
         logits = logits[:, -1]  # KV (get last token)
         probs = F.softmax(logits, dim=-1)  # KV
         idx = self.truncate(probs)  # KV -> K'2 (K, V)
@@ -97,9 +100,7 @@ class CaptionSampler(nn.Module):
         probs = probs / probs.sum(dim=-1, keepdim=True)  # renormalize
         sample = torch.multinomial(probs, self.num_samples)  # N
         idx = idx[sample]  # N2
-        hypo = hypo[idx[:, 0]]
         tokens = idx[:, 1]
-        # hypo = torch.cat((hypo, tokens.unsqueeze(-1)), dim=1)
         return tokens, probs
 
 

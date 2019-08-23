@@ -63,3 +63,30 @@ class SmoothLoss(_Loss):
         }[self.reduction]
 
         return func(t)
+
+
+class FocalLoss(_Loss):
+    def __init__(self, size_average=None, reduce=None, reduction='mean', gamma=2):
+        super(FocalLoss, self).__init__(size_average, reduce, reduction)
+
+        self.gamma = gamma
+
+    def forward(self, hypo, tgt):
+        hypo = hypo.contiguous()
+        tgt = tgt.contiguous().byte().float()
+
+        # hypo = (tgt=1: hypo, tgt=0: (1-hypo))
+        p_t = hypo * (2 * tgt - 1) + (1 - tgt)
+        loss = -((1 - p_t) ** self.gamma) * p_t.log()
+        loss = loss.mean(dim=-1)
+        loss = self._reduce(loss)
+        return loss, {}
+
+    def _reduce(self, t):
+        func = {
+            'none': lambda x: x,
+            'mean': lambda x: x.mean(),
+            'sum': lambda x: x.sum()
+        }[self.reduction]
+
+        return func(t)

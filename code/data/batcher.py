@@ -205,7 +205,8 @@ def make_feature_lm_batch_with_keywords(tokenizer, data, keywords=None, **kwargs
     # data: list of chunks: list of [item dict]
     data = jsonl_to_json(data)
     batch_sentences = data['target']
-    keywords = torch.Tensor([tokenizer.convert_tokens_to_ids(token) for token in keywords]).long()
+    if keywords is not None:
+        keywords = torch.Tensor([tokenizer.convert_tokens_to_ids(token) for token in keywords]).long()
     def get_text(sentences):
         sentences = [tokenizer.encode(t) for t in sentences]
         max_limit = kwargs.get('max_sentence_tokens', None)
@@ -215,9 +216,12 @@ def make_feature_lm_batch_with_keywords(tokenizer, data, keywords=None, **kwargs
         sentences = [torch.Tensor([tokenizer.cls_id, *t]) for t in sentences]
         # tensor B*L
         sentences, lengths = pad(sentences, tokenizer.pad_id)
-        keyword_mask = sentences.unsqueeze(-1).expand(-1, -1, keywords.shape[0]) == keywords.view(1, 1, -1)
-        keyword_mask = keyword_mask.long().sum(dim=1) > 0  # VN
-        keyword_mask = [i.squeeze() for i in keyword_mask.split(1, dim=0)]
+        if keywords is not None:
+            keyword_mask = sentences.unsqueeze(-1).expand(-1, -1, keywords.shape[0]) == keywords.view(1, 1, -1)
+            keyword_mask = keyword_mask.long().sum(dim=1) > 0  # VN
+            keyword_mask = [i.squeeze() for i in keyword_mask.split(1, dim=0)]
+        else:
+            keyword_mask = None
         targets, _ = pad(targets, tokenizer.pad_id)
         return sentences, lengths, targets, keyword_mask
     sentences, lengths, targets, keyword_masks = zip(*[get_text(sentence) for sentence in batch_sentences])
@@ -229,7 +233,10 @@ def make_feature_lm_batch_with_keywords(tokenizer, data, keywords=None, **kwargs
     image = data['resnet152_2']
     image = pad_tensor(image, 0)
     video = pad_tensor(video, 0)
-    keyword_masks = pad_tensor(keyword_masks, 0)
+    if keywords is not None:
+        keyword_masks = pad_tensor(keyword_masks, 0)
+    else:
+        keyword_masks = None
 
     return {'sentences': sentences,
             'batch_lengths': batch_lengths,

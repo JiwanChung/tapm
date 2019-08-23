@@ -9,6 +9,7 @@ from data.batcher import make_feature_lm_batch_with_keywords
 from .modules import Attention, GRU
 from .scn_rnn import SCNLSTM
 from .transformer_model import TransformerModel
+from .keyword_classifier import KeywordClassifier
 
 
 '''
@@ -32,12 +33,17 @@ class HybridDis(TransformerModel):
         self.keyword_num = args.get('keyword_num', 1000)
         self.dropout_ratio = args.get('dropout', 0.5)
         self.feature_names = args.get('feature_names',
-                                      ['video', 'image', 'box'])
+                                      ['video', 'image'])
+                                      # ['video', 'image', 'box'])
         self.share_in_out = args.get('share_in_out',
                                      False)
         self.max_target_len = args.max_target_len
         self.tokenizer = tokenizer
         self.vocab_size = len(tokenizer)
+
+        self.keyword_classifier = KeywordClassifier(
+            self.keyword_num, self.dim, self.feature_names,
+            self.video_dim, self.image_dim)
 
         for feature in self.feature_names:
             setattr(self, feature, FeatureEncoder(getattr(self, f"{feature}_dim"), self.dim))
@@ -98,7 +104,7 @@ class HybridDis(TransformerModel):
         h = self.rnn.init_h(B, device=video.device)
         c = self.rnn.init_c(B, self.context_dim, device=video.device)
         s0 = sentences[:, v, 0] if sentences is not None \
-            else torch.Tensor([self.tokenizer.cls_id]).long().to(video.device)
+            else torch.Tensor([self.tokenizer.cls_id]).long().to(video.device).expand(B)
         s = s0
         hypo = s0.unsqueeze(-1)
 
@@ -111,7 +117,7 @@ class HybridDis(TransformerModel):
                     s = sentences[:, v, min(L - 1, w + 1)].clone()
                     eos_flags = eos_flags | (sentences[:, v, min(L - 1, w + 1)] == self.tokenizer.sep_id)
                 else:
-                    s, probs = sampler(logits, hypo)
+                    s, probs = sampler(logits)
                     eos_flags = eos_flags | (logits.argmax(dim=-1) == self.tokenizer.pad_id)
             hypo = torch.cat((hypo, s.unsqueeze(-1)), dim=1)
             sent.append(logits)
@@ -132,17 +138,20 @@ class HybridDis(TransformerModel):
         L = batch.sentences.shape[2] if hasattr(batch, 'sentences') else self.max_target_len
         sent_gt = batch.sentences if hasattr(batch, 'sentences') else None
 
+        features = {k: val for k, val \
+                    in {f: getattr(batch, f) for f \
+                        in self.feature_names}.items()}
+        keywords, reg_loss = self.keyword_classifier(batch.keywords, features)
+
         res = []
         for v in range(V):
-            features = {k: val[:, v] for k, val \
-                        in {f: getattr(batch, f) for f \
-                            in self.feature_names}.items()}
+            feature = {k: val[:, v] for k, val in features.items()}
             c = self.rnn.init_c(B, self.context_dim, device=video.device)
-            keyword = batch.keywords[:, v] if hasattr(batch, 'keywords') else None
-            c, sent, _ = self.run_video(features, c, v, L, sentences=sent_gt, keyword=keyword)
+            keyword = keywords[:, v] if keywords is not None else None
+            c, sent, _ = self.run_video(feature, c, v, L, sentences=sent_gt, keyword=keyword)
             res.append(sent)  # BLV
         del batch.sentences  # for generation
-        return torch.stack(res, 1).contiguous(), batch.targets, None, {}, batch
+        return torch.stack(res, 1).contiguous(), batch.targets, reg_loss, {}, batch
 
 
 class FeatureEncoder(nn.Module):
