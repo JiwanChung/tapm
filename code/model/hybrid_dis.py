@@ -55,7 +55,7 @@ class HybridDis(TransformerModel):
             'rnn': GRU(num_layers, 2 * self.dim + self.context_dim, self.dim, dropout=self.dropout_ratio),
             'scn': SCNLSTM(2 * self.dim + self.context_dim, self.keyword_num, self.dim,
                            num_layers, batch_first=True, dropout=self.dropout_ratio)
-        }[args.get('decoder_type', 'rnn')]
+        }[args.get('decoder_type', 'scn')]
         self.context_encoder = PrevEncoder(self.dim, self.context_dim)
         self.dropout = nn.Dropout(self.dropout_ratio)
 

@@ -82,7 +82,7 @@ class CaptionSampler(nn.Module):
                 for v in range(V):
                     feature = {k: val[i, v].unsqueeze(0) for k, val in features.items()}
                     c = self.model.rnn.init_c(B, self.model.context_dim, device=video.device)
-                    keyword = keywords[:, v] if keywords is not None else None
+                    keyword = keywords[i, v].unsqueeze(0) if keywords is not None else None
                     c, _, hypo = self.model.run_video(feature, c, v,
                                                       self.max_target_len,
                                                       sentences=None,
