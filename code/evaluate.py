@@ -7,7 +7,7 @@ from tensor_utils import move_device
 from data.batcher import decode_tensor
 from sampler import get_sampler
 from utils import jsonl_to_json, remove_sep
-from metric import Metric
+from metric.metric import Metric
 
 
 def evaluate(args, model, loss_fn, optimizer, tokenizer, dataloaders,

@@ -1,3 +1,5 @@
+from contextlib import contextmanager
+import sys, os
 import re
 from collections import defaultdict
 from datetime import datetime
@@ -152,3 +154,15 @@ def remove_duplicate(li, key=lambda x: x):
 
 def remove_sep(string, sep='[SEP]'):
     return string[:string.find(sep)].strip()
+
+
+@contextmanager
+def suppress_stdout(do=True):
+    if do:
+        with open(os.devnull, "w") as devnull:
+            old_stdout = sys.stdout
+            sys.stdout = devnull
+            try:
+                yield
+            finally:
+                sys.stdout = old_stdout
