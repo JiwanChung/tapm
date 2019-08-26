@@ -9,39 +9,46 @@ from pycocoevalcap.rouge.rouge import Rouge
 from pycocoevalcap.cider.cider import Cider
 
 
-class Metric:
-    ngrams = ['bleu', 'meteor', 'rouge', 'meteor']
+def remove_nonascii(text):
+    return ''.join([i if ord(i) < 128 else ' ' for i in text])
 
+
+class Metric:
     def __init__(self, args):
-        metrics = args.get('metrics', ['meteor', 'bleu', 'rouge'])
+        metrics = args.get('metrics', ['meteor', 'bleu', 'rouge', 'cider'])
+
         self.tokenizer = PTBTokenizer()
         scorers = {
             'bleu': (Bleu(4), ["Bleu_1", "Bleu_2", "Bleu_3", "Bleu_4"]),
             'meteor': (Meteor(),"METEOR"),
             'rouge': (Rouge(), "ROUGE_L"),
-            # 'cider': (Cider(), "CIDEr") CIDEr is only applicable to the whole dataset since it
-            # uses document-wise tf-idf
+            'cider': (Cider(), "CIDEr")   # CIDEr is only applicable to the whole dataset since it
         }
         self.scorers = [v for k, v in scorers.items() if k in metrics]
 
         self.debug = args.get('debug', False)
 
-    def calculate(self, hypo, gts):
-        with suppress_stdout(not self.debug):
-            data = defaultdict(float)
-            if not isinstance(gts, list):
-                gts = {str(1): [gts]}
-                hypo = {str(1): [hypo]}
+    def calculate(self, texts):
+        if self.debug:
+            return self._calculate(texts)
+        else:
+            with suppress_stdout():
+                return self._calculate(texts)
+
+    def _calculate(self, texts):
+        hypo = {k: [{'caption': remove_nonascii(v[0])}] for k, v in texts.items()}
+        tgt = {k: [{'caption': remove_nonascii(v[1])}] for k, v in texts.items()}
+        hypo = self.tokenizer.tokenize(hypo)
+        tgt = self.tokenizer.tokenize(tgt)
+
+        data = defaultdict(float)
+        for scorer, method in self.scorers:
+            score, scores = scorer.compute_score(tgt, hypo)
+            if type(method) == list:
+                for sc, m in zip(score, method):
+                    data[m] += sc
             else:
-                gts = {str(k): [v] for k, v in enumerate(gts)}
-                hypo = {str(k): [v] for k, v in enumerate(hypo)}
-            for scorer, method in self.scorers:
-                score, scores = scorer.compute_score(gts, hypo)
-                if type(method) == list:
-                    for sc, m in zip(score, method):
-                        data[m] += sc
-                else:
-                    data[method] += score
+                data[method] += score
         return data
 
     def __call__(self, *args, **kwargs):

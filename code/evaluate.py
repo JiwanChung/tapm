@@ -37,6 +37,7 @@ def evaluate_base(args, model, loss_fn, tokenizer, dataloaders,
     dataloader = dataloaders['val']
     metric = Metric(args)
     text_logging_step = 0
+    texts = {}
     with torch.no_grad():
         for batch in tqdm(dataloader, total=len(dataloader)):
             batch = move_device(batch,
@@ -70,36 +71,37 @@ def evaluate_base(args, model, loss_fn, tokenizer, dataloaders,
                     hypos = logits.argmax(dim=-1)
                     sampler = get_sampler(args, model)
                     hypos = sampler(sampler_input)
-                    score_stats = []
 
-                    def calc(target, hypo):
+                    def calc(target, hypo, vid):
+                        nonlocal texts
                         if not (target == tokenizer.pad_id).all():
                             target = decode_tensor(tokenizer, target, remove_past_sep=True)
                             hypo = decode_tensor(tokenizer, hypo, remove_past_sep=True)
                             target = remove_sep(target, tokenizer.sep_token)
                             hypo = remove_sep(hypo, tokenizer.sep_token)
-                            score_stats.append(metric.calculate(hypo, target))
-
+                            texts[vid] = (hypo, target)
                             return target, hypo
 
-                    def recurse(shape, *args, func=None):
+                    def recurse(shape, *args, vid='0', func=None):
                         if len(shape) > 0:
                             for i in range(shape[0]):
-                                recurse(shape[1:], *list([v[i] if v is not None else v for v in args]), func=func)
+                                if not isinstance(vid, str):
+                                    vid_new = vid[i]
+                                else:
+                                    vid_new = f'{vid}_{i}'
+                                recurse(shape[1:], *list([v[i] if v is not None else v for v in args]),
+                                        vid=vid_new, func=func)
                         else:
-                            func(*args)
+                            func(*args, vid=vid)
 
-                    recurse(batch.targets.shape[:-1], batch.targets, hypos, func=calc)
-
-                    score_stats = jsonl_to_json(score_stats)
-                    score_stats = {k: sum(v) / len(v) for k, v in score_stats.items()}
-                    stats = {**stats, **score_stats}
+                    recurse(batch.targets.shape[:-1], batch.targets, hypos,
+                            vid=batch.vid, func=calc)
 
                 for k, v in stats.items():
                     epoch_stats[k] = epoch_stats[k] + B * v
                 epoch_stats['num'] = epoch_stats['num'] + B
 
-                def log_text(targets, hypos, keywords=None):
+                def log_text(targets, hypos, keywords=None, vid=None):
                     nonlocal text_logging_step
 
                     target = decode_tensor(tokenizer, targets, remove_past_sep=True)
@@ -130,6 +132,8 @@ def evaluate_base(args, model, loss_fn, tokenizer, dataloaders,
 
     num = epoch_stats.pop('num')
     epoch_stats = {k: v / num for k, v in epoch_stats.items()}
+    score_stats = metric.calculate(texts)
+    epoch_stats = {**epoch_stats, **score_stats}
 
     return epoch_stats, sampler_input, None
 
