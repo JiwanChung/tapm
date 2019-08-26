@@ -24,7 +24,7 @@ class Metric:
         }
         self.scorers = [v for k, v in scorers.items() if k in metrics]
 
-        self.debug = args.debug
+        self.debug = args.get('debug', False)
 
     def calculate(self, hypo, gts):
         with suppress_stdout(not self.debug):
