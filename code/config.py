@@ -36,6 +36,7 @@ config = {
     'num_workers': 32,
 
     'sample': False,
+    'debug': False,
     'log_cmd': False,
     'log_path': 'data/log',
     'log_text_every': 2000,
