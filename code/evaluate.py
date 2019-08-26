@@ -86,11 +86,14 @@ def evaluate_base(args, model, loss_fn, tokenizer, dataloaders,
                         if len(shape) > 0:
                             for i in range(shape[0]):
                                 if not isinstance(vid, str):
-                                    vid_new = vid[i]
+                                    if len(vid) > i:
+                                        vid_new = vid[i]
+                                        recurse(shape[1:], *list([v[i] if v is not None else v for v in args]),
+                                            vid=vid_new, func=func)
                                 else:
                                     vid_new = f'{vid}_{i}'
-                                recurse(shape[1:], *list([v[i] if v is not None else v for v in args]),
-                                        vid=vid_new, func=func)
+                                    recurse(shape[1:], *list([v[i] if v is not None else v for v in args]),
+                                            vid=vid_new, func=func)
                         else:
                             func(*args, vid=vid)
 
