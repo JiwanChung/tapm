@@ -11,7 +11,7 @@ from metric.metric import Metric
 
 
 def evaluate(args, model, loss_fn, optimizer, tokenizer, dataloaders,
-             logger, print_output=False, epoch=0):
+             logger, print_output=False, epoch=0, subset=None):
     print("evaluating")
     eval_dict = {
         'mask_model': evaluate_mask,
@@ -26,11 +26,11 @@ def evaluate(args, model, loss_fn, optimizer, tokenizer, dataloaders,
     else:
         func = evaluate_base
     return func(args, model, loss_fn, tokenizer, dataloaders,
-                logger, print_output, epoch)
+                logger, print_output, epoch, subset)
 
 
 def evaluate_base(args, model, loss_fn, tokenizer, dataloaders,
-                  logger, print_output=False, epoch=-1):
+                  logger, print_output=False, epoch=-1, subset=None):
     epoch_stats = defaultdict(float)
     model.eval()
     n_step = 0
@@ -38,8 +38,10 @@ def evaluate_base(args, model, loss_fn, tokenizer, dataloaders,
     metric = Metric(args)
     text_logging_step = 0
     texts = {}
+    subset = (len(dataloader) * subset) // args.batch_sizes['val'] if subset is not None else None
+    subset = max(1, subset)
     with torch.no_grad():
-        for batch in tqdm(dataloader, total=len(dataloader)):
+        for batch in tqdm(dataloader, total=len(dataloader) if subset is None else subset):
             batch = move_device(batch,
                                 to=args.device)
             B = batch['sentences'].shape[0] if torch.is_tensor(batch['sentences']) else len(batch['sentences'])
@@ -133,6 +135,9 @@ def evaluate_base(args, model, loss_fn, tokenizer, dataloaders,
                     keywords = None
                     recurse(batch.targets.shape[:-1], batch.targets, hypos, keywords, func=log_text)
 
+                if n_step > subset:
+                    break
+
     num = epoch_stats.pop('num')
     epoch_stats = {k: v / num for k, v in epoch_stats.items()}
     score_stats = metric.calculate(texts)
@@ -141,7 +146,8 @@ def evaluate_base(args, model, loss_fn, tokenizer, dataloaders,
     return epoch_stats, sampler_input, None
 
 
-def evaluate_mask(args, model, loss_fn, tokenizer, dataloaders, logger, print_output=False, epoch=0):
+def evaluate_mask(args, model, loss_fn, tokenizer, dataloaders, logger,
+                  print_output=False, epoch=0, subset=None):
     epoch_stats = defaultdict(float)
     model.eval()
     n_step = 0

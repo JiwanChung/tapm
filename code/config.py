@@ -29,6 +29,8 @@ config = {
     'grad_clip': None,
     'batch_sizes': {'train': 16, 'val': 16, 'test': 16},
     'max_epoch': 30,
+    'eval_every': 10,
+    'eval_subset': 0.2,
 
     'train_path': 'data/LSMDC/task1/LSMDC16_annos_training_someone.csv',
     'val_path': 'data/LSMDC/task1/LSMDC16_annos_val_someone.csv',

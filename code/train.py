@@ -79,7 +79,8 @@ def train(args, model, loss_fn, optimizer, tokenizer, dataloaders, logger):
         for name, val in epoch_stats.items():
             logger(f"train/epoch/{name}", val, epoch)
         eval_stats, _, _ = evaluate(args, model, loss_fn, optimizer, tokenizer,
-                                    dataloaders, logger, epoch=epoch)
+                                    dataloaders, logger, epoch=epoch,
+                                    subset=None if (epoch + 1) % args.eval_every == 0 else args.eval_subset)
 
         for name, val in eval_stats.items():
             logger(f"eval/epoch/{name}", val, epoch)

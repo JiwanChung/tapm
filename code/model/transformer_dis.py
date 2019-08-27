@@ -1,10 +1,12 @@
 from collections import OrderedDict
+from itertools import chain
 
 import torch
 from torch import nn
 import torch.nn.functional as F
 
 from .hybrid_dis import HybridDis
+from debug_utils import timeit
 
 
 class TransformerDis(HybridDis):
@@ -13,38 +15,52 @@ class TransformerDis(HybridDis):
     def __init__(self, args, transformer, tokenizer):
         super(TransformerDis, self).__init__(args, transformer, tokenizer)
 
-        for feature in self.feature_names:
-            setattr(self, feature, FeatureEncoder(getattr(self, f"{feature}_dim"), self.dim))
-
         self.net = transformer
         self.net.train()
         self.gpt_dim = self.net.transformer.config.n_embd
 
-        self.reduce_cat = nn.Linear(self.gpt_dim + self.dim + self.keyword_num, self.gpt_dim)
+        for feature in self.feature_names:
+            setattr(self, feature, FeatureEncoder(getattr(self, f"{feature}_dim"), self.gpt_dim))
+
+        self.reduce_cat = nn.Linear(self.gpt_dim + self.keyword_num, self.gpt_dim)
         self.reduce_c = nn.Linear(self.gpt_dim, self.dim)
 
     def run_transformer(self, hypo, features, keyword):
         h, past, head_mask = transformer_embed(self.net.transformer, hypo)
-        h = torch.cat((h, features.unsqueeze(1).expand(-1, h.shape[1], -1),
+        h = torch.cat((h, # features.unsqueeze(1).expand(-1, h.shape[1], -1),
                        keyword.unsqueeze(1).expand(-1, h.shape[1], -1)), dim=-1)
         h = self.reduce_cat(h)
+        cls_embd = self.net.transformer.wte(torch.LongTensor([self.tokenizer.cls_id]).to(h.device))
+        sep_embd = self.net.transformer.wte(torch.LongTensor([self.tokenizer.sep_id]).to(h.device))
+        B, L, C = h.shape
+        cls_embd = cls_embd.view(1, 1, -1).contiguous().expand(B, 1, -1)
+        sep_embd = sep_embd.view(1, 1, -1).contiguous().expand(B, 1, -1)
+        context = torch.cat((cls_embd, *chain(*[(feature, sep_embd) for feature in features.values()])), dim=1)
+        h = torch.cat((context, h), dim=1)
 
-        o = transformer_run_cells(self.net.transformer, h, hypo, past=past, head_mask=head_mask)[0]
+        o = transformer_run_cells(self.net.transformer, h, past=past, head_mask=head_mask)[0]
+        o = o[:, context.shape[1]:]
         c = o.mean(dim=1)
         c = self.reduce_c(c)
         logits = self.net.lm_head(o)
         return logits, c
 
+    def run_token(self, features, hypo, h, c, keyword):
+        features = OrderedDict(sorted(features.items()))  # canonical ordering
+        for feature in self.feature_names:
+            features[feature] = getattr(self, feature)(features[feature], None)
+        logits, h = self.generate_token(hypo, features, c, h, keyword)
+        return h, c, logits
+
     def run_train(self, hypo, features, keyword):
         features = OrderedDict(sorted(features.items()))  # canonical ordering
         for feature in self.feature_names:
             features[feature] = getattr(self, feature)(features[feature], None)
-        features = self.encoder(torch.cat(list(features.values()), dim=-1))
         return self.run_transformer(hypo, features, keyword)
 
     def generate_token(self, hypo, features, c, h, keyword):
         logits, h = self.run_transformer(hypo, features, keyword)
-        return logits, h  # return last token
+        return logits, h
 
     def run_video(self, features, c, v, L, sentences=None, sampler=None, keyword=None):
         video = features['video']
@@ -69,10 +85,10 @@ class TransformerDis(HybridDis):
                     h = None
                     h, c, logits = self.run_token(features, hypo, h, c, keyword=keyword)
                     s, probs = sampler(logits)
-                    eos_flags = eos_flags | (logits.argmax(dim=-1) == self.tokenizer.pad_id)
+                    eos_flags = eos_flags | (logits[:, -1].argmax(dim=-1) == self.tokenizer.pad_id)
                 hypo = torch.cat((hypo, s.unsqueeze(-1)), dim=1)
                 sent.append(logits)
-                hypo = hypo[:, 1:][probs.argmax(dim=-1)]
+            hypo = hypo[:, 1:][probs.argmax(dim=-1)]
         c = self.context_encoder(h)
         if not self.use_context:
             c = torch.full_like(c.detach(), 0)
@@ -119,11 +135,11 @@ def transformer_embed(self, input_ids, position_ids=None, token_type_ids=None, p
     return hidden_states, past, head_mask
 
 
-def transformer_run_cells(self, hidden_states, input_ids, position_ids=None,
+def transformer_run_cells(self, hidden_states, position_ids=None,
                           token_type_ids=None, past=None, head_mask=None):
     hidden_states = self.drop(hidden_states)
 
-    input_shape = input_ids.size()
+    input_shape = hidden_states.shape[:-1]
     output_shape = input_shape + (hidden_states.size(-1),)
 
     presents = ()
@@ -167,5 +183,4 @@ class FeatureEncoder(nn.Module):
     def forward(self, feature, h):
         # BLC
         feature = self.linear(feature)
-        feature = feature.max(dim=1)[0]
         return feature
