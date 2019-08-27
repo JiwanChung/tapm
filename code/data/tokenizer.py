@@ -2,6 +2,8 @@ import torch
 import collections
 from itertools import chain
 
+from torchtext.vocab import pretrained_aliases
+
 from tqdm import tqdm
 
 from pytorch_transformers import PreTrainedTokenizer, BasicTokenizer
@@ -21,7 +23,6 @@ def build_tokenizer(args, data):
         tokenizer = torch.load(path)
 
     print(f"vocab num: {len(tokenizer)}")
-
     return tokenizer
 
 
@@ -90,3 +91,9 @@ class WhitespaceTokenizer(PreTrainedTokenizer):
     @property
     def vocab_size(self):
         return len(self.vocab)
+
+
+def build_word_embedding(name, tokenizer):
+    embedding = pretrained_aliases[name]()
+    vectors = [tok for ids, tok in tokenizer.ids_to_tokens.items()]
+    return embedding.get_vecs_by_tokens(vectors, lower_case_backup=True)

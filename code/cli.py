@@ -12,6 +12,7 @@ from config import config, debug_options, log_keys
 from utils import wait_for_key, add_keyword_paths
 from train import train
 from evaluate import evaluate
+from tokenizer import build_word_embedding
 from extract_keyword import extract_and_save_all
 from model import get_model
 from ckpt import get_model_ckpt
@@ -56,6 +57,9 @@ class Cli:
         model.to(args.device)
         args.update(kwargs)
         dataloaders = get_dataloaders(args, datasets, model.make_batch, tokenizer)
+        pretrained_embedding = args.get('pretrained_embedding', None)
+        if pretrained_embedding is not None:
+            tokenizer.embedding = build_word_embedding(pretrained_embedding, tokenizer)
         args.batch_per_epoch = {}
         for key in dataloaders.keys():
             args.batch_per_epoch[key] = \

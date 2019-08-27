@@ -48,12 +48,14 @@ class HybridDis(TransformerModel):
         for feature in self.feature_names:
             setattr(self, feature, FeatureEncoder(getattr(self, f"{feature}_dim"), self.dim))
         self.encoder = nn.Linear(len(self.feature_names) * self.dim, self.dim)
-        self.wte = nn.Embedding(self.vocab_size, self.dim)
+        self.pretrained_embedding = args.get('pretrained_embedding', False)
+        self.wte_dim = 300 if self.pretrained_embedding else self.dim
+        self.wte = nn.Embedding(self.vocab_size, self.wte_dim)
         self.context_dim = self.dim // 4
         num_layers = 1
         self.rnn = {
-            'rnn': GRU(num_layers, 2 * self.dim + self.context_dim, self.dim, dropout=self.dropout_ratio),
-            'scn': SCNLSTM(2 * self.dim + self.context_dim, self.keyword_num, self.dim,
+            'rnn': GRU(num_layers, self.wte_dim + self.dim + self.context_dim, self.dim, dropout=self.dropout_ratio),
+            'scn': SCNLSTM(self.wte_dim + self.dim + self.context_dim, self.keyword_num, self.dim,
                            num_layers, batch_first=True, dropout=self.dropout_ratio)
         }[args.get('decoder_type', 'scn')]
         self.context_encoder = PrevEncoder(self.dim, self.context_dim)
@@ -80,6 +82,8 @@ class HybridDis(TransformerModel):
         if not self.share_in_out:
             self.out.bias.data.fill_(0)
             self.out.weight.data.uniform_(-init_range, init_range)
+        if self.pretrained_embedding is not None:
+            self.word_embed.load_state_dict({'weight': self.embedding})
 
     def out_shared(self, x):
         return torch.matmul(x, self.wte.weight.t())

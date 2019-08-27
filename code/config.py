@@ -12,6 +12,8 @@ config = {
     'extraction_min_words': 2,
     'feature_names': None,
     'max_vocab': None,
+    'pretrained_embedding': None,
+    # 'pretrained_embedding': 'glove.840B.300d',
 
     'eval_generate': True,
     'eval_metric': True,
