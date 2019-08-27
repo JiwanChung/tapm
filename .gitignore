@@ -2,3 +2,4 @@
 log
 ckpt
 repos
+.vector_cache

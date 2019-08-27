@@ -83,20 +83,25 @@ class HybridDis(TransformerModel):
             self.out.bias.data.fill_(0)
             self.out.weight.data.uniform_(-init_range, init_range)
         if self.pretrained_embedding is not None:
-            self.word_embed.load_state_dict({'weight': self.embedding})
+            self.wte.load_state_dict({'weight': self.tokenizer.embedding})
 
     def out_shared(self, x):
         return torch.matmul(x, self.wte.weight.t())
 
-    def run_token(self, features, s, h, c, keyword):
-        features = OrderedDict(sorted(features.items()))  # canonical ordering
-        for feature in self.feature_names:
-            features[feature] = getattr(self, feature)(features[feature], h)
-        features = self.encoder(torch.cat(list(features.values()), dim=-1))
+    def generate_token(self, hypo, features, c, h, keyword):
+        s = hypo[:, -1]  # get last token
         s = self.wte(s).unsqueeze(1)  # B1C
         s = torch.cat((features, c, s), dim=-1)
         o, h = self.rnn(s, h, keyword=keyword)
         logits = self.out(o)  # BV
+        return logits, h
+
+    def run_token(self, features, hypo, h, c, keyword):
+        features = OrderedDict(sorted(features.items()))  # canonical ordering
+        for feature in self.feature_names:
+            features[feature] = getattr(self, feature)(features[feature], h)
+        features = self.encoder(torch.cat(list(features.values()), dim=-1))
+        logits, h = self.generate_token(hypo, features, c, h, keyword)
         return h, c, logits
 
     def run_video(self, features, c, v, L, sentences=None, sampler=None, keyword=None):
@@ -105,8 +110,8 @@ class HybridDis(TransformerModel):
         empty = torch.full((B, self.vocab_size), float('-inf')).to(video.device)
         sent = []
         eos_flags = torch.LongTensor([0] * B).byte().to(video.device)
-        h = self.rnn.init_h(B, device=video.device)
-        c = self.rnn.init_c(B, self.context_dim, device=video.device)
+        h = self.rnn.init_h(B, device=video.device) if hasattr(self, 'rnn') else None
+        c = self.rnn.init_c(B, self.context_dim, device=video.device) if hasattr(self, 'rnn') else None
         s0 = sentences[:, v, 0] if sentences is not None \
             else torch.Tensor([self.tokenizer.cls_id]).long().to(video.device).expand(B)
         s = s0
@@ -116,7 +121,7 @@ class HybridDis(TransformerModel):
             if eos_flags.all():
                 logits = empty.clone()
             else:
-                h, c, logits = self.run_token(features, s, h, c, keyword=keyword)
+                h, c, logits = self.run_token(features, hypo, h, c, keyword=keyword)
                 if sentences is not None:  # training
                     s = sentences[:, v, min(L - 1, w + 1)].clone()
                     eos_flags = eos_flags | (sentences[:, v, min(L - 1, w + 1)] == self.tokenizer.sep_id)
@@ -150,7 +155,7 @@ class HybridDis(TransformerModel):
         res = []
         for v in range(V):
             feature = {k: val[:, v] for k, val in features.items()}
-            c = self.rnn.init_c(B, self.context_dim, device=video.device)
+            c = self.rnn.init_c(B, self.context_dim, device=video.device) if hasattr(self, 'rnn') else None
             keyword = keywords[:, v] if keywords is not None else None
             c, sent, _ = self.run_video(feature, c, v, L, sentences=sent_gt, keyword=keyword)
             res.append(sent)  # BLV

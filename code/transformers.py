@@ -51,10 +51,10 @@ def get_gpt2():
         #'sep_token': "<|endoftext|>",
         # 'cls_token': "[CLS]",
         'pad_token': "_____",
-        'eos_token': "<|endoftext|>",
+        'sep_token': "<|endoftext|>",
     }
     special_tokens = {
-        'sos_token': "<|endoftext|>",
+        'cls_token': "<|endoftext|>",
         # 'type_a': '[TYPE_A]',
         # 'type_b': '[TYPE_B]',
         # 'person': '[SOMEONE]'
@@ -71,18 +71,12 @@ def get_gpt2():
         else:
             setattr(tokenizer, f"{k}_id",
                 tokenizer.convert_tokens_to_ids(v))
-    tokenizer.sos_id = tokenizer.encode(special_tokens['sos_token'])[0]
+    tokenizer.cls_id = tokenizer.encode(special_tokens['cls_token'])[0]
     tokenizer.model_name = model_name
 
-    # get models
-    encoder = model_class.from_pretrained(model_name)
-    decoder = model_class.from_pretrained(model_name)
+    net = model_class.from_pretrained(model_name)
     # resize embeddings
     if tokenizer.vocab_size != len(tokenizer):
-        encoder.resize_token_embeddings(len(tokenizer))
-        decoder.resize_token_embeddings(len(tokenizer))
-    # share embeddings
-    decoder.transformer.wte.weight = encoder.transformer.wte.weight
-    decoder.transformer.wpe.weight = encoder.transformer.wpe.weight
+        net.resize_token_embeddings(len(tokenizer))
 
-    return {'encoder': encoder, 'decoder': decoder}, tokenizer
+    return net, tokenizer

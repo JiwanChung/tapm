@@ -12,7 +12,6 @@ class Dataset(data.Dataset):
     def __init__(self, data_path, args):
         super(Dataset, self).__init__()
 
-
         self.data, self.global_data = load_tasks(args, data_path)
 
         self.list_ids = list(self.data.keys())
