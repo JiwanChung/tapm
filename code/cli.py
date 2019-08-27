@@ -12,7 +12,7 @@ from config import config, debug_options, log_keys
 from utils import wait_for_key, add_keyword_paths
 from train import train
 from evaluate import evaluate
-from tokenizer import build_word_embedding
+from data.tokenizer import build_word_embedding
 from extract_keyword import extract_and_save_all
 from model import get_model
 from ckpt import get_model_ckpt
