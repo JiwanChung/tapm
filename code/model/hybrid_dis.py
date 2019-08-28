@@ -104,7 +104,8 @@ class HybridDis(TransformerModel):
         logits, h = self.generate_token(hypo, features, c, h, keyword)
         return h, c, logits
 
-    def run_video(self, features, c, v, L, sentences=None, sampler=None, keyword=None):
+    def run_video(self, features, c, v, L, sentences=None, sampler=None,
+                  keyword=None, reduce_hypo=True):
         video = features['video']
         B = video.shape[0]
         empty = torch.full((B, self.vocab_size), float('-inf')).to(video.device)
@@ -130,7 +131,7 @@ class HybridDis(TransformerModel):
                     eos_flags = eos_flags | (logits.argmax(dim=-1) == self.tokenizer.pad_id)
             hypo = torch.cat((hypo, s.unsqueeze(-1)), dim=1)
             sent.append(logits)
-        if sentences is None:
+        if sentences is None and reduce_hypo:
             hypo = hypo[:, 1:][probs.argmax(dim=-1)]
         else:
             sent = torch.stack(sent, 1).contiguous()

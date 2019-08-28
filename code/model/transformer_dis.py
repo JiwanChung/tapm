@@ -62,7 +62,8 @@ class TransformerDis(HybridDis):
         logits, h = self.run_transformer(hypo, features, keyword)
         return logits, h
 
-    def run_video(self, features, c, v, L, sentences=None, sampler=None, keyword=None):
+    def run_video(self, features, c, v, L, sentences=None, sampler=None,
+                  keyword=None, reduce_hypo=True):
         video = features['video']
         B = video.shape[0]
         empty = torch.full((B, self.vocab_size), float('-inf')).to(video.device)
@@ -88,7 +89,8 @@ class TransformerDis(HybridDis):
                     eos_flags = eos_flags | (logits[:, -1].argmax(dim=-1) == self.tokenizer.pad_id)
                 hypo = torch.cat((hypo, s.unsqueeze(-1)), dim=1)
                 sent.append(logits)
-            hypo = hypo[:, 1:][probs.argmax(dim=-1)]
+            if reduce_hypo:
+                hypo = hypo[:, 1:][probs.argmax(dim=-1)]
         c = self.context_encoder(h)
         if not self.use_context:
             c = torch.full_like(c.detach(), 0)

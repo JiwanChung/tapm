@@ -66,9 +66,16 @@ class CaptionSampler(nn.Module):
         self.model = model
         self.max_target_len = args.max_target_len
         self.num_samples = args.get('num_samples', 1)
+        self.sampling_method = args.sampling_method
         self.truncate = sampler
 
-    def forward(self, batch):  # we only use features
+    def forward(self, batch):
+        if self.sampling_method:
+            return self.forward_faster_greedy(batch)
+        else:
+            return self.forward_base(batch)
+
+    def forward_base(self, batch):  # we only use features
         video = batch.video
         B, V = video.shape[:2]
         res = []
@@ -92,6 +99,29 @@ class CaptionSampler(nn.Module):
                 res.append(vid)
         return res
 
+    def forward_faster_greedy(self, batch):
+        video = batch.video
+        B, V = video.shape[:2]
+        features = {k: val for k, val \
+                    in {f: getattr(batch, f) for f \
+                        in self.model.feature_names}.items()}
+        keywords, reg_loss = self.model.keyword_classifier(batch.keywords, features)
+        with torch.no_grad():
+            vid = []
+            for v in range(V):
+                feature = {k: val[:, v] for k, val in features.items()}
+                c = self.model.rnn.init_c(B, self.model.context_dim, device=video.device)
+                keyword = keywords[:, v] if keywords is not None else None
+                c, _, hypo = self.model.run_video(feature, c, v,
+                                                    self.max_target_len,
+                                                    sentences=None,
+                                                    sampler=self.sample_token_faster_greedy,
+                                                    keyword=keyword,
+                                                    reduce_hypo=False)
+                for i in range(hypo.shape[0]):
+                    vid.append(hypo[i])
+        return vid
+
     def sample_token(self, logits):
         logits = logits[:, -1]  # KV (get last token)
         probs = F.softmax(logits, dim=-1)  # KV
@@ -101,6 +131,12 @@ class CaptionSampler(nn.Module):
         sample = torch.multinomial(probs, self.num_samples)  # N
         idx = idx[sample]  # N2
         tokens = idx[:, 1]
+        return tokens, probs
+
+    def sample_token_faster_greedy(self, logits):
+        logits = logits[:, -1]  # BV (get last token)
+        probs = F.softmax(logits, dim=-1)  # BV
+        tokens = probs.argmax(dim=-1)  # B
         return tokens, probs
 
 
