@@ -89,7 +89,8 @@ def evaluate_base(args, model, loss_fn, tokenizer, dataloaders,
                         hypo = decode_tensor(tokenizer, hypo, remove_past_sep=True)
                         target = remove_sep(target, tokenizer.sep_token)
                         hypo = remove_sep(hypo, tokenizer.sep_token)
-                        texts[vid] = (hypo, target)
+                        if len(target) > 0:
+                            texts[vid] = (hypo, target)
                         return target, hypo
 
                 def recurse(shape, *args, vid='0', func=None):
@@ -150,6 +151,8 @@ def evaluate_base(args, model, loss_fn, tokenizer, dataloaders,
 
     num = epoch_stats.pop('num')
     epoch_stats = {k: v / num for k, v in epoch_stats.items()}
+
+    # remove tensor padding
     if len(texts.keys()) > 0:
         score_stats = metric.calculate(texts)
         epoch_stats = {**epoch_stats, **score_stats}

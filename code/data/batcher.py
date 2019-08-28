@@ -243,6 +243,8 @@ def make_feature_lm_batch_with_keywords(tokenizer, data, keywords=None, **kwargs
     word_subsets = pad_tensor(word_subsets, 0)
     word_subsets[:, :, tokenizer.pad_id] = 0
 
+    # TODO: Account for tensor padding in loss & ngram metric calc!
+
     return {'sentences': sentences,
             'batch_lengths': batch_lengths,
             'lengths': lengths,

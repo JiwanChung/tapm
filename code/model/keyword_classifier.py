@@ -43,12 +43,12 @@ class KeywordClassifier(nn.Module):
         hypo = torch.stack(list(hypo.values()), dim=0).mean(dim=0)
         hypo = self.res_block(hypo)
         hypo = self.out(hypo)
-        hypo = torch.sigmoid(hypo)
 
         loss = None
         stats = {}
         if keywords is not None:
             loss, _ = self.loss(hypo, keywords)
+            hypo = torch.sigmoid(hypo)
             with torch.no_grad():
                 no_keyword_mask = keywords.byte().long().sum(dim=-1) != 0
                 hypo_mask = hypo >= 0.5
@@ -62,6 +62,8 @@ class KeywordClassifier(nn.Module):
                 topk = keywords.gather(dim=-1, index=topk).float().sum(dim=-1)
                 topk_recall = topk / (keywords.float().sum(dim=-1) + self.eps)
                 stats[f'keyword_top{self.recall_k}_recall'] = topk_recall.masked_select(no_keyword_mask).mean().cpu().item()
+        else:
+            hypo = torch.sigmoid(hypo)
 
         return hypo, loss, stats
 

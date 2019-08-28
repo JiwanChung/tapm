@@ -103,6 +103,3 @@ class BinaryCELoss(nn.BCEWithLogitsLoss):
         loss = super().forward(hypo, tgt)
 
         return loss, {}
-
-
-
