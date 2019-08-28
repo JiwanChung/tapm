@@ -2,7 +2,7 @@ import torch
 from torch import nn
 import torch.nn.functional as F
 
-from loss import FocalLoss
+from loss import FocalLoss, BinaryCELoss
 
 
 class KeywordClassifier(nn.Module):
@@ -20,10 +20,10 @@ class KeywordClassifier(nn.Module):
 
         for feature in self.feature_names:
             setattr(self, feature, nn.Linear(getattr(self, f"{feature}_dim"), self.dim))
-        self.layer_norm = nn.LayerNorm(self.dim)
         self.out = nn.Linear(self.dim, self.keyword_num)
 
-        self.loss = FocalLoss(gamma)
+        # self.loss = FocalLoss(gamma)
+        self.loss = BinaryCELoss()
 
     def forward(self, keywords, features):
         # BVK, BVNC
@@ -32,10 +32,9 @@ class KeywordClassifier(nn.Module):
             hypo[feature] = getattr(self, feature)(features[feature])
             if hypo[feature].dim() > 3:
                 hypo[feature] = hypo[feature].mean(dim=-2)
-            hypo[feature] = F.relu(hypo[feature])
         # BVK
         hypo = torch.stack(list(hypo.values()), dim=0).mean(dim=0)
-        hypo = self.layer_norm(hypo)
+        hypo = self.res_bloc(hypo)
         hypo = self.out(hypo)
         hypo = torch.sigmoid(hypo)
 

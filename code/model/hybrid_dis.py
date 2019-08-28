@@ -132,8 +132,10 @@ class HybridDis(TransformerModel):
                     eos_flags = eos_flags | (logits.argmax(dim=-1) == self.tokenizer.pad_id)
             hypo = torch.cat((hypo, s.unsqueeze(-1)), dim=1)
             sent.append(logits)
+
+        hypo = hypo[:, 1:]
         if sentences is None and reduce_hypo:
-            hypo = hypo[:, 1:][probs.argmax(dim=-1)]
+            hypo = hypo[probs.argmax(dim=-1)]
         else:
             sent = torch.stack(sent, 1).contiguous()
         c = self.context_encoder(h)

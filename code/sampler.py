@@ -70,7 +70,7 @@ class CaptionSampler(nn.Module):
         self.truncate = sampler
 
     def forward(self, batch):
-        if self.sampling_method:
+        if self.sampling_method == 'greedy':
             return self.forward_faster_greedy(batch)
         else:
             return self.forward_base(batch)
@@ -118,9 +118,15 @@ class CaptionSampler(nn.Module):
                                                     sampler=self.sample_token_faster_greedy,
                                                     keyword=keyword,
                                                     reduce_hypo=False)
-                for i in range(hypo.shape[0]):
-                    vid.append(hypo[i])
-        return vid, stats
+                vid.append(hypo)
+        res = []
+        for i in range(B):
+            vid_res = []
+            for v in range(V):
+                vid_res.append(vid[v][i])
+            res.append(vid_res)
+
+        return res, stats
 
     def sample_token(self, logits):
         logits = logits[:, -1]  # KV (get last token)

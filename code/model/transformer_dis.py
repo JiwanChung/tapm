@@ -94,8 +94,10 @@ class TransformerDis(HybridDis):
                     eos_flags = eos_flags | (logits[:, -1].argmax(dim=-1) == self.tokenizer.pad_id)
                 hypo = torch.cat((hypo, s.unsqueeze(-1)), dim=1)
                 sent.append(logits)
+
+            hypo = hypo[:, 1:]
             if reduce_hypo:
-                hypo = hypo[:, 1:][probs.argmax(dim=-1)]
+                hypo = hypo[probs.argmax(dim=-1)]
         c = self.context_encoder(h)
         if not self.use_context:
             c = torch.full_like(c.detach(), 0)

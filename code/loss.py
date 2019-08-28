@@ -90,3 +90,19 @@ class FocalLoss(_Loss):
         }[self.reduction]
 
         return func(t)
+
+
+class BinaryCELoss(nn.BCEWithLogitsLoss):
+    def __init__(self, reduction='mean'):
+        super(BinaryCELoss, self).__init__(reduction=reduction)
+
+    def forward(self, hypo, tgt):
+        hypo = hypo.contiguous()
+        tgt = tgt.contiguous().byte().float()
+
+        loss = super().forward(hypo, tgt)
+
+        return loss, {}
+
+
+
