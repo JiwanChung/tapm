@@ -152,7 +152,7 @@ class HybridDis(TransformerModel):
         features = {k: val for k, val \
                     in {f: getattr(batch, f) for f \
                         in self.feature_names}.items()}
-        keywords, reg_loss = self.keyword_classifier(batch.keywords, features)
+        keywords, reg_loss, stats = self.keyword_classifier(batch.keyword_masks, features)
 
         res = []
         for v in range(V):
@@ -162,7 +162,7 @@ class HybridDis(TransformerModel):
             c, sent, _ = self.run_video(feature, c, v, L, sentences=sent_gt, keyword=keyword)
             res.append(sent)  # BLV
         del batch.sentences  # for generation
-        return torch.stack(res, 1).contiguous(), batch.targets, reg_loss, {}, batch
+        return torch.stack(res, 1).contiguous(), batch.targets, reg_loss, stats, batch
 
 
 class FeatureEncoder(nn.Module):

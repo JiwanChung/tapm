@@ -82,7 +82,7 @@ class CaptionSampler(nn.Module):
         features = {k: val for k, val \
                     in {f: getattr(batch, f) for f \
                         in self.model.feature_names}.items()}
-        keywords, reg_loss = self.model.keyword_classifier(batch.keywords, features)
+        keywords, reg_loss, stats = self.model.keyword_classifier(batch.keyword_masks, features)
         with torch.no_grad():
             for i in range(B):
                 vid = []
@@ -97,7 +97,7 @@ class CaptionSampler(nn.Module):
                                                       keyword=keyword)
                     vid.append(hypo)
                 res.append(vid)
-        return res
+        return res, stats
 
     def forward_faster_greedy(self, batch):
         video = batch.video
@@ -105,7 +105,7 @@ class CaptionSampler(nn.Module):
         features = {k: val for k, val \
                     in {f: getattr(batch, f) for f \
                         in self.model.feature_names}.items()}
-        keywords, reg_loss = self.model.keyword_classifier(batch.keywords, features)
+        keywords, reg_loss, stats = self.model.keyword_classifier(batch.keyword_masks, features)
         with torch.no_grad():
             vid = []
             for v in range(V):
@@ -120,7 +120,7 @@ class CaptionSampler(nn.Module):
                                                     reduce_hypo=False)
                 for i in range(hypo.shape[0]):
                     vid.append(hypo[i])
-        return vid
+        return vid, stats
 
     def sample_token(self, logits):
         logits = logits[:, -1]  # KV (get last token)

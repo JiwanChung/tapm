@@ -10,6 +10,8 @@ class KeywordClassifier(nn.Module):
                  video_dim, image_dim, gamma=2):
         super(KeywordClassifier, self).__init__()
 
+        self.eps = 1e-8
+
         self.keyword_num = keyword_num
         self.feature_names = feature_names
         self.dim = dim
@@ -38,7 +40,16 @@ class KeywordClassifier(nn.Module):
         hypo = torch.sigmoid(hypo)
 
         loss = None
+        stats = {}
         if keywords is not None:
             loss, _ = self.loss(hypo, keywords)
+            with torch.no_grad():
+                hypo_mask = hypo >= 0.5
+                keywords = keywords.byte()
+                intersection = (hypo_mask & keywords).float().sum(dim=-1)
+                recall = intersection / (hypo_mask.float().sum(dim=-1) + self.eps)
+                acc = intersection / (keywords.float().sum(dim=-1) + self.eps)
+                stats['keyword_recall'] = recall.mean().cpu().item()
+                stats['keyword_acc'] = acc.mean().cpu().item()
 
-        return hypo, loss
+        return hypo, loss, stats

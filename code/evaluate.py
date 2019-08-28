@@ -75,7 +75,10 @@ def evaluate_base(args, model, loss_fn, tokenizer, dataloaders,
                 if args.eval_metric:
                     hypos = logits.argmax(dim=-1)
                     sampler = get_sampler(args, model)
-                    hypos = sampler(sampler_input)
+                    hypos= sampler(sampler_input)
+                    if isinstance(hypos, tuple):
+                        hypos, classifier_stats = hypos
+                        stats = {**stats, **classifier_stats}
 
                     def calc(target, hypo, vid):
                         nonlocal texts
@@ -134,11 +137,13 @@ def evaluate_base(args, model, loss_fn, tokenizer, dataloaders,
                     hypos = logits.argmax(dim=-1)
                     sampler = get_sampler(args, model)
                     hypos = sampler(sampler_input)
+                    if isinstance(hypos, tuple):
+                        hypos, _ = hypos
 
                     keywords = None
                     recurse(batch.targets.shape[:-1], batch.targets, hypos, keywords, func=log_text)
 
-                if n_step > subset:
+                if subset is not None and n_step > subset:
                     break
 
     num = epoch_stats.pop('num')
