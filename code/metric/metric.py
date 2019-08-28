@@ -38,8 +38,9 @@ class Metric:
     def _calculate(self, texts):
         hypo = {k: [{'caption': remove_nonascii(v[0])}] for k, v in texts.items()}
         tgt = {k: [{'caption': remove_nonascii(v[1])}] for k, v in texts.items()}
-        hypo = self.tokenizer.tokenize(hypo)
-        tgt = self.tokenizer.tokenize(tgt)
+        with suppress_stdout():
+            hypo = self.tokenizer.tokenize(hypo)
+            tgt = self.tokenizer.tokenize(tgt)
 
         data = defaultdict(float)
         for scorer, method in self.scorers:

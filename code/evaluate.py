@@ -38,10 +38,13 @@ def evaluate_base(args, model, loss_fn, tokenizer, dataloaders,
     metric = Metric(args)
     text_logging_step = 0
     texts = {}
-    subset = (len(dataloader) * subset) // args.batch_sizes['val'] if subset is not None else None
-    subset = max(1, subset)
+    total_length = len(dataloader)
+    if subset is not None:
+        subset = (len(dataloader) * subset) // args.batch_sizes['val']
+        subset = max(1, subset)
+        total_length = subset
     with torch.no_grad():
-        for batch in tqdm(dataloader, total=len(dataloader) if subset is None else subset):
+        for batch in tqdm(dataloader, total=subset):
             batch = move_device(batch,
                                 to=args.device)
             B = batch['sentences'].shape[0] if torch.is_tensor(batch['sentences']) else len(batch['sentences'])
