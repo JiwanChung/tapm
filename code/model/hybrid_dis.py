@@ -93,6 +93,7 @@ class HybridDis(TransformerModel):
         s = self.wte(s).unsqueeze(1)  # B1C
         s = torch.cat((features, c, s), dim=-1)
         o, h = self.rnn(s, h, keyword=keyword)
+        o = self.dropout(o)
         logits = self.out(o)  # BV
         return logits, h
 

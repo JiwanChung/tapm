@@ -15,6 +15,8 @@ class TransformerDis(HybridDis):
     def __init__(self, args, transformer, tokenizer):
         super(TransformerDis, self).__init__(args, transformer, tokenizer)
 
+        self.dropout_ratio = args.get('dropout', 0.5)
+
         self.net = transformer
         self.net.train()
         self.gpt_dim = self.net.transformer.config.n_embd
@@ -24,6 +26,8 @@ class TransformerDis(HybridDis):
 
         self.reduce_cat = nn.Linear(self.gpt_dim + self.keyword_num, self.gpt_dim)
         self.reduce_c = nn.Linear(self.gpt_dim, self.dim)
+
+        self.dropout = nn.Dropout(self.dropout_ratio)
 
     def run_transformer(self, hypo, features, keyword):
         h, past, head_mask = transformer_embed(self.net.transformer, hypo)
@@ -39,6 +43,7 @@ class TransformerDis(HybridDis):
         h = torch.cat((context, h), dim=1)
 
         o = transformer_run_cells(self.net.transformer, h, past=past, head_mask=head_mask)[0]
+        o = self.dropout(o)
         o = o[:, context.shape[1]:]
         c = o.mean(dim=1)
         c = self.reduce_c(c)
