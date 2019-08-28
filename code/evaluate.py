@@ -51,105 +51,108 @@ def evaluate_base(args, model, loss_fn, tokenizer, dataloaders,
             targets = batch['targets']
             logits, targets, reg_loss, added_stats, sampler_input = model(batch,
                                                                      batch_per_epoch=args.batch_per_epoch['train'])
-            loss, stats = loss_fn(logits, targets)
-
-            if loss is not None:
+            if logits is not None:
+                loss, stats = loss_fn(logits, targets)
+                stats = {'nll_loss': loss.item(), **stats}
                 if reg_loss is not None:
                     final_loss = loss + reg_loss.sum() * args.reg_coeff
-                else:
-                    final_loss = loss
-                n_step += 1
-
-                if reg_loss is not None:
                     stats = {**stats, **{
-                        'nll_loss': loss.item(),
-                        'reg_loss': reg_loss.mean().item() * args.reg_coeff,
+                        'reg_loss': reg_loss.mean().item(),
                         'final_loss': final_loss.item()
                     }}
                 else:
-                    stats = {**stats, **{
-                        'nll_loss': loss.item()}}
-                if added_stats is not None:
-                    stats = {**stats, **added_stats}
+                    final_loss = loss
+            else:
+                final_loss = reg_loss
+                stats = {
+                    'reg_loss': reg_loss.mean().item(),
+                    'final_loss': final_loss.item()
+                }
 
-                if args.eval_metric:
-                    hypos = logits.argmax(dim=-1)
-                    sampler = get_sampler(args, model)
-                    hypos= sampler(sampler_input)
-                    if isinstance(hypos, tuple):
-                        hypos, classifier_stats = hypos
-                        stats = {**stats, **classifier_stats}
+            if added_stats is not None:
+                stats = {**stats, **added_stats}
 
-                    def calc(target, hypo, vid):
-                        nonlocal texts
-                        if not (target == tokenizer.pad_id).all():
-                            target = decode_tensor(tokenizer, target, remove_past_sep=True)
-                            hypo = decode_tensor(tokenizer, hypo, remove_past_sep=True)
-                            target = remove_sep(target, tokenizer.sep_token)
-                            hypo = remove_sep(hypo, tokenizer.sep_token)
-                            texts[vid] = (hypo, target)
-                            return target, hypo
+            n_step += 1
 
-                    def recurse(shape, *args, vid='0', func=None):
-                        if len(shape) > 0:
-                            for i in range(shape[0]):
-                                if not isinstance(vid, str):
-                                    if len(vid) > i:
-                                        vid_new = vid[i]
-                                        recurse(shape[1:], *list([v[i] if v is not None else v for v in args]),
-                                            vid=vid_new, func=func)
-                                else:
-                                    vid_new = f'{vid}_{i}'
+            if args.eval_metric and logits is not None:
+                hypos = logits.argmax(dim=-1)
+                sampler = get_sampler(args, model)
+                hypos= sampler(sampler_input)
+                if isinstance(hypos, tuple):
+                    hypos, classifier_stats = hypos
+                    stats = {**stats, **classifier_stats}
+
+                def calc(target, hypo, vid):
+                    nonlocal texts
+                    if not (target == tokenizer.pad_id).all():
+                        target = decode_tensor(tokenizer, target, remove_past_sep=True)
+                        hypo = decode_tensor(tokenizer, hypo, remove_past_sep=True)
+                        target = remove_sep(target, tokenizer.sep_token)
+                        hypo = remove_sep(hypo, tokenizer.sep_token)
+                        texts[vid] = (hypo, target)
+                        return target, hypo
+
+                def recurse(shape, *args, vid='0', func=None):
+                    if len(shape) > 0:
+                        for i in range(shape[0]):
+                            if not isinstance(vid, str):
+                                if len(vid) > i:
+                                    vid_new = vid[i]
                                     recurse(shape[1:], *list([v[i] if v is not None else v for v in args]),
-                                            vid=vid_new, func=func)
-                        else:
-                            func(*args, vid=vid)
+                                        vid=vid_new, func=func)
+                            else:
+                                vid_new = f'{vid}_{i}'
+                                recurse(shape[1:], *list([v[i] if v is not None else v for v in args]),
+                                        vid=vid_new, func=func)
+                    else:
+                        func(*args, vid=vid)
 
-                    recurse(batch.targets.shape[:-1], batch.targets, hypos,
-                            vid=batch.vid, func=calc)
+                recurse(batch.targets.shape[:-1], batch.targets, hypos,
+                        vid=batch.vid, func=calc)
 
-                for k, v in stats.items():
-                    epoch_stats[k] = epoch_stats[k] + B * v
-                epoch_stats['num'] = epoch_stats['num'] + B
+            for k, v in stats.items():
+                epoch_stats[k] = epoch_stats[k] + B * v
+            epoch_stats['num'] = epoch_stats['num'] + B
 
-                def log_text(targets, hypos, keywords=None, vid=None):
-                    nonlocal text_logging_step
+            def log_text(targets, hypos, keywords=None, vid=None):
+                nonlocal text_logging_step
 
-                    target = decode_tensor(tokenizer, targets, remove_past_sep=True)
-                    string = ""
-                    if keywords is not None:
-                        if isinstance(keywords, tuple):
-                            keywords, scores = keywords
-                            keyword = decode_tensor(tokenizer, keywords, remove_past_sep=True)
-                            score = '/'.join(["%.2f" % j for j in scores.detach().cpu().numpy()])
-                            string += f"keywords:{[f'({i}/{j})' for i, j in zip(keyword.split(), score.split('/'))]}"
-                        else:
-                            keyword = decode_tensor(tokenizer, keywords, remove_past_sep=True)
-                            string += f"keywords:{keyword}"
-                    hypo = decode_tensor(tokenizer, hypos, remove_past_sep=True)
-                    string += f"\nhypo: {hypo}"
-                    string += f"\ntarget: {target}"
-                    logger(f"eval/keyword/epoch{epoch}", string, text_logging_step)
-                    text_logging_step += 1
+                target = decode_tensor(tokenizer, targets, remove_past_sep=True)
+                string = ""
+                if keywords is not None:
+                    if isinstance(keywords, tuple):
+                        keywords, scores = keywords
+                        keyword = decode_tensor(tokenizer, keywords, remove_past_sep=True)
+                        score = '/'.join(["%.2f" % j for j in scores.detach().cpu().numpy()])
+                        string += f"keywords:{[f'({i}/{j})' for i, j in zip(keyword.split(), score.split('/'))]}"
+                    else:
+                        keyword = decode_tensor(tokenizer, keywords, remove_past_sep=True)
+                        string += f"keywords:{keyword}"
+                hypo = decode_tensor(tokenizer, hypos, remove_past_sep=True)
+                string += f"\nhypo: {hypo}"
+                string += f"\ntarget: {target}"
+                logger(f"eval/keyword/epoch{epoch}", string, text_logging_step)
+                text_logging_step += 1
 
-                # log text for batch 1 ~ 5
-                if n_step <= 5:
-                    hypos = logits.argmax(dim=-1)
-                    sampler = get_sampler(args, model)
-                    hypos = sampler(sampler_input)
-                    if isinstance(hypos, tuple):
-                        hypos, _ = hypos
+            # log text for batch 1 ~ 5
+            if n_step <= 5 and logits is not None:
+                hypos = logits.argmax(dim=-1)
+                sampler = get_sampler(args, model)
+                hypos = sampler(sampler_input)
+                if isinstance(hypos, tuple):
+                    hypos, _ = hypos
 
-                    keywords = None
-                    recurse(batch.targets.shape[:-1], batch.targets, hypos, keywords, func=log_text)
+                keywords = None
+                recurse(batch.targets.shape[:-1], batch.targets, hypos, keywords, func=log_text)
 
-                if subset is not None and n_step > subset:
-                    break
+            if subset is not None and n_step > subset:
+                break
 
     num = epoch_stats.pop('num')
     epoch_stats = {k: v / num for k, v in epoch_stats.items()}
-    score_stats = metric.calculate(texts)
-    epoch_stats = {**epoch_stats, **score_stats}
+    if len(texts.keys()) > 0:
+        score_stats = metric.calculate(texts)
+        epoch_stats = {**epoch_stats, **score_stats}
 
     return epoch_stats, sampler_input, None
 

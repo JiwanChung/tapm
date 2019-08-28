@@ -216,14 +216,17 @@ def make_feature_lm_batch_with_keywords(tokenizer, data, keywords=None, **kwargs
         sentences = [torch.Tensor([tokenizer.cls_id, *t]) for t in sentences]
         # tensor B*L
         sentences, lengths = pad(sentences, tokenizer.pad_id)
+        word_subset = torch.zeros(sentences.shape[0], len(tokenizer)).byte().to(sentences.device)
+        word_subset = word_subset.scatter(dim=-1, index=sentences, value=1)
+        word_subset = [i.squeeze() for i in word_subset.split(1, dim=0)]
         keyword_mask = None
         if keywords is not None:
             keyword_mask = sentences.unsqueeze(-1).expand(-1, -1, keywords.shape[0]) == keywords.view(1, 1, -1)
             keyword_mask = keyword_mask.long().sum(dim=1) > 0  # VN
             keyword_mask = [i.squeeze() for i in keyword_mask.split(1, dim=0)]
         targets, _ = pad(targets, tokenizer.pad_id)
-        return sentences, lengths, targets, keyword_mask
-    sentences, lengths, targets, keyword_masks = zip(*[get_text(sentence) for sentence in batch_sentences])
+        return sentences, lengths, targets, keyword_mask, word_subset
+    sentences, lengths, targets, keyword_masks, word_subsets = zip(*[get_text(sentence) for sentence in batch_sentences])
     sentences, batch_lengths = pad(sentences, tokenizer.pad_id)
     targets, _ = pad(targets, tokenizer.pad_id)
     lengths, _ = pad(lengths, 0)
@@ -237,6 +240,9 @@ def make_feature_lm_batch_with_keywords(tokenizer, data, keywords=None, **kwargs
     else:
         keyword_masks = None
 
+    word_subsets = pad_tensor(word_subsets, 0)
+    word_subsets[:, :, tokenizer.pad_id] = 0
+
     return {'sentences': sentences,
             'batch_lengths': batch_lengths,
             'lengths': lengths,
@@ -245,7 +251,8 @@ def make_feature_lm_batch_with_keywords(tokenizer, data, keywords=None, **kwargs
             'video': video,
             'vid': data['vid'],
             'keyword_masks': keyword_masks,
-            'keyword_map': keywords}
+            'keyword_map': keywords,
+            'word_subsets': word_subsets}
 
 
 def pad(x, pad_id=0):

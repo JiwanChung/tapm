@@ -29,50 +29,55 @@ def train(args, model, loss_fn, optimizer, tokenizer, dataloaders, logger):
             targets = batch['targets']
             logits, targets, reg_loss, added_stats, keywords = model(batch,
                                                                      batch_per_epoch=args.batch_per_epoch['train'])
-            loss, stats = loss_fn(logits, targets)
 
-            if loss is not None:
+            if logits is not None:
+                loss, stats = loss_fn(logits, targets)
+                stats = {'nll_loss': loss.item(), **stats}
                 if reg_loss is not None:
                     final_loss = loss + reg_loss.sum() * args.reg_coeff
-                else:
-                    final_loss = loss
-                final_loss.backward()
-                optimizer.clip_grad()
-                optimizer.step()
-                optimizer.scheduler.step()
-                n_step += 1
-
-                if reg_loss is not None:
                     stats = {**stats, **{
-                        'nll_loss': loss.item(),
-                        'reg_loss': reg_loss.mean().item() * args.reg_coeff,
+                        'reg_loss': reg_loss.mean().item(),
                         'final_loss': final_loss.item()
                     }}
                 else:
-                    stats = {**stats, **{
-                        'nll_loss': loss.item()}}
-                if added_stats is not None:
-                    stats = {**stats, **added_stats}
-                for k, v in stats.items():
-                    epoch_stats[k] = epoch_stats[k] + B * v
-                epoch_stats['num'] = epoch_stats['num'] + B
+                    final_loss = loss
+            else:
+                final_loss = reg_loss
+                stats = {
+                    'reg_loss': reg_loss.mean().item(),
+                    'final_loss': final_loss.item()
+                }
 
-                # log lr
-                stats['lr'] = optimizer.get_lr()
+            final_loss.backward()
+            optimizer.clip_grad()
+            optimizer.step()
+            optimizer.scheduler.step()
 
-                for name, val in stats.items():
-                    logger(f"train/iters/{name}", val, n_step)
-                if args.log_text_every > 0 and \
-                        ((n_step + 1) % args.log_text_every == 0):
-                    if keywords is not None and model.use_keyword:
-                        if isinstance(keywords, tuple):
-                            keywords, scores = keywords
-                        for i in range(B):
-                            keyword = decode_tensor(tokenizer, keywords[i], remove_past_sep=True)
-                            score = '/'.join(["%.2f" % j for j in scores[i].detach().cpu().numpy()])
-                            target = decode_tensor(tokenizer, batch['targets'][i], remove_past_sep=True)
-                            string = f"keywords:{[f'({i}/{j})' for i, j in zip(keyword.split(), score.split('/'))]}\ntarget: {target}"
-                            logger(f"train/keyword/epoch{epoch}", string, (n_step - 1) * B + i)
+            if added_stats is not None:
+                stats = {**stats, **added_stats}
+
+            n_step += 1
+
+            for k, v in stats.items():
+                epoch_stats[k] = epoch_stats[k] + B * v
+            epoch_stats['num'] = epoch_stats['num'] + B
+
+            # log lr
+            stats['lr'] = optimizer.get_lr()
+
+            for name, val in stats.items():
+                logger(f"train/iters/{name}", val, n_step)
+            if args.log_text_every > 0 and \
+                    ((n_step + 1) % args.log_text_every == 0):
+                if keywords is not None and model.use_keyword:
+                    if isinstance(keywords, tuple):
+                        keywords, scores = keywords
+                    for i in range(B):
+                        keyword = decode_tensor(tokenizer, keywords[i], remove_past_sep=True)
+                        score = '/'.join(["%.2f" % j for j in scores[i].detach().cpu().numpy()])
+                        target = decode_tensor(tokenizer, batch['targets'][i], remove_past_sep=True)
+                        string = f"keywords:{[f'({i}/{j})' for i, j in zip(keyword.split(), score.split('/'))]}\ntarget: {target}"
+                        logger(f"train/keyword/epoch{epoch}", string, (n_step - 1) * B + i)
 
         num = epoch_stats.pop('num')
         epoch_stats = {k: v / num for k, v in epoch_stats.items()}
@@ -85,7 +90,7 @@ def train(args, model, loss_fn, optimizer, tokenizer, dataloaders, logger):
         for name, val in eval_stats.items():
             logger(f"eval/epoch/{name}", val, epoch)
 
-        current_loss = eval_stats['nll_loss']
+        current_loss = eval_stats['final_loss']
         save_ckpt(args, epoch, current_loss, model, tokenizer)
 
         if args.extract_keyword and current_loss < lowest_loss:
