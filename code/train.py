@@ -42,7 +42,7 @@ def train(args, model, loss_fn, optimizer, tokenizer, dataloaders, logger):
                 else:
                     final_loss = loss
             else:
-                final_loss = reg_loss
+                final_loss = reg_loss * args.reg_coeff
                 stats = {
                     'reg_loss': reg_loss.mean().item(),
                     'final_loss': final_loss.item()

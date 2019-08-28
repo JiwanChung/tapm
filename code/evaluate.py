@@ -119,7 +119,7 @@ def evaluate_base(args, model, loss_fn, tokenizer, dataloaders,
                 nonlocal text_logging_step
 
                 target = decode_tensor(tokenizer, targets, remove_past_sep=True)
-                string = ""
+                string = f"vid:{vid}\n"
                 if keywords is not None:
                     if isinstance(keywords, tuple):
                         keywords, scores = keywords
@@ -144,7 +144,8 @@ def evaluate_base(args, model, loss_fn, tokenizer, dataloaders,
                     hypos, _ = hypos
 
                 keywords = None
-                recurse(batch.targets.shape[:-1], batch.targets, hypos, keywords, func=log_text)
+                recurse(batch.targets.shape[:-1], batch.targets, hypos, keywords,
+                        vid=batch.vid, func=log_text)
 
             if subset is not None and n_step > subset:
                 break
@@ -157,7 +158,7 @@ def evaluate_base(args, model, loss_fn, tokenizer, dataloaders,
         score_stats = metric.calculate(texts)
         epoch_stats = {**epoch_stats, **score_stats}
 
-    return epoch_stats, sampler_input, None
+    return epoch_stats, sampler_input, texts
 
 
 def evaluate_mask(args, model, loss_fn, tokenizer, dataloaders, logger,

@@ -76,11 +76,16 @@ class Cli:
 
     def evaluate(self, **kwargs):
         all_args = self.prepare(**kwargs)
+        args = all_args[0]
 
-        stats, keywords, target = evaluate(*all_args, print_output=False)
+        stats, _, texts = evaluate(*all_args, print_output=False)
 
         print(stats)
-        print(f"key:{keywords}, target:{target}")
+
+        with open(args.log_path.parent / 'texts.txt', 'w') as f:
+            for k, v in texts.items():
+                line = {k: {'hypo': v[0], 'target': v[1]}}
+                f.write(f'{line}\n')
 
         # hold process to keep tensorboard alive
         wait_for_key()

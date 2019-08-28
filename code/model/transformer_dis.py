@@ -43,8 +43,8 @@ class TransformerDis(HybridDis):
         h = torch.cat((context, h), dim=1)
 
         o = transformer_run_cells(self.net.transformer, h, past=past, head_mask=head_mask)[0]
-        o = self.dropout(o)
         o = o[:, context.shape[1]:]
+        o = self.dropout(o)
         c = o.mean(dim=1)
         c = self.reduce_c(c)
         logits = self.net.lm_head(o)
