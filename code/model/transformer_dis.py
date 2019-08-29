@@ -29,11 +29,19 @@ class TransformerDis(HybridDis):
 
         self.dropout = nn.Dropout(self.dropout_ratio)
 
-    def run_transformer(self, hypo, features, keyword):
-        h, past, head_mask = transformer_embed(self.net.transformer, hypo)
+    def add_keyword(self, h, keyword):
         h = torch.cat((h, # features.unsqueeze(1).expand(-1, h.shape[1], -1),
                        keyword.unsqueeze(1).expand(-1, h.shape[1], -1)), dim=-1)
         h = self.reduce_cat(h)
+        return h
+
+    def get_logits(self, o, keyword):
+        return self.net.lm_head(o)
+
+    def run_transformer(self, hypo, features, keyword):
+        h, past, head_mask = transformer_embed(self.net.transformer, hypo)
+        h = self.add_keyword(h, keyword)
+
         cls_embd = self.net.transformer.wte(torch.LongTensor([self.tokenizer.cls_id]).to(h.device))
         sep_embd = self.net.transformer.wte(torch.LongTensor([self.tokenizer.sep_id]).to(h.device))
         B, L, C = h.shape
@@ -47,7 +55,7 @@ class TransformerDis(HybridDis):
         o = self.dropout(o)
         c = o.mean(dim=1)
         c = self.reduce_c(c)
-        logits = self.net.lm_head(o)
+        logits = self.get_logits(o, keyword)
         return logits, c
 
     def run_token(self, features, hypo, h, c, keyword):

@@ -75,6 +75,12 @@ class HybridDis(TransformerModel):
         if epoch > 10:
             self.context = True
 
+    def get_keyword_map(self, ids):
+        # get NV
+        storage = torch.zeros(ids.shape[0], len(self.tokenizer)).float().to(ids.device)
+        storage.scatter_(-1, ids.unsqueeze(-1), 1)
+        return storage
+
     def init_weights(self):
         init_range = 0.1
         for feature in self.feature_names:
@@ -150,6 +156,9 @@ class HybridDis(TransformerModel):
         B, V = video.shape[:2]
         L = batch.sentences.shape[2] if hasattr(batch, 'sentences') else self.max_target_len
         sent_gt = batch.sentences if hasattr(batch, 'sentences') else None
+
+        if (not hasattr(self, 'keyword_map')) and hasattr(batch, 'keyword_map'):
+            self.keyword_map = self.get_keyword_map(batch.keyword_map)
 
         features = {k: val for k, val \
                     in {f: getattr(batch, f) for f \
