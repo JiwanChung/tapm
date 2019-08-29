@@ -182,3 +182,21 @@ class ResBlock(nn.Module):
         x = self.dropout(x)
         x = self.linear2(x)
         return x_prev + x
+
+
+class MLP(nn.Module):
+    def __init__(self, dim):
+        super(MLP, self).__init__()
+
+        self.dim = dim
+
+        self.l1 = nn.Linear(self.dim, self.dim)
+        self.l2 = nn.Linear(self.dim, self.dim)
+
+    def forward(self, x):
+        x = self.l1(x)
+        x = F.relu(x)
+        x = self.l2(x)
+        return x
+
+
