@@ -82,7 +82,7 @@ class CaptionSampler(nn.Module):
         features = {k: val for k, val \
                     in {f: getattr(batch, f) for f \
                         in self.model.feature_names}.items()}
-        keywords, reg_loss, stats = self.model.keyword_classifier(batch.keyword_masks, features)
+        keywords, reg_loss, stats = self.model.get_keyword(batch, features)
         with torch.no_grad():
             for i in range(B):
                 vid = []
@@ -105,7 +105,7 @@ class CaptionSampler(nn.Module):
         features = {k: val for k, val \
                     in {f: getattr(batch, f) for f \
                         in self.model.feature_names}.items()}
-        keywords, reg_loss, stats = self.model.keyword_classifier(batch.keyword_masks, features)
+        keywords, reg_loss, stats = self.model.get_keyword(batch, features)
         with torch.no_grad():
             vid = []
             for v in range(V):

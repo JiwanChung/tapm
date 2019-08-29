@@ -150,6 +150,9 @@ class HybridDis(TransformerModel):
             c.requires_grad_(False)
         return c, sent, hypo
 
+    def get_keyword(self, batch, features):
+        return self.keyword_classifier(batch.keyword_masks, features)
+
     def forward(self, batch, **kwargs):
         # BVLC, BVL
         video = batch.video
@@ -163,7 +166,8 @@ class HybridDis(TransformerModel):
         features = {k: val for k, val \
                     in {f: getattr(batch, f) for f \
                         in self.feature_names}.items()}
-        keywords, reg_loss, stats = self.keyword_classifier(batch.keyword_masks, features)
+        keywords, reg_loss, stats = self.get_keyword(batch, features)
+        keywords = keywords.detach()
 
         res = []
         for v in range(V):
