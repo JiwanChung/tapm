@@ -54,7 +54,7 @@ class TransformerDisMoe(TransformerDis2):
     def __init__(self, args, transformer, tokenizer):
         super(TransformerDisMoe, self).__init__(args, transformer, tokenizer)
 
-        self.moe_dim = self.gpt_dim // 8
+        self.moe_dim = self.gpt_dim // 16
         self.moe_in = nn.Linear(self.gpt_dim, self.keyword_num * self.moe_dim)
         self.moe_out = nn.Linear(self.keyword_num * self.moe_dim, self.gpt_dim)
         self.gate_mlp = MLP(self.gpt_dim)

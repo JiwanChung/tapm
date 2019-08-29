@@ -37,6 +37,7 @@ class HybridDis(TransformerModel):
                                       # ['video', 'image', 'box'])
         self.share_in_out = args.get('share_in_out',
                                      False)
+        self.use_gt_keywords = args.get('use_gt_keywords', False)
         self.max_target_len = args.max_target_len
         self.tokenizer = tokenizer
         self.vocab_size = len(tokenizer)
@@ -168,6 +169,8 @@ class HybridDis(TransformerModel):
                         in self.feature_names}.items()}
         keywords, reg_loss, stats = self.get_keyword(batch, features)
         keywords = keywords.detach()
+        if self.use_gt_keywords:
+            keywords = batch.keywords.float()
 
         res = []
         for v in range(V):
