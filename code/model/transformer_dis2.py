@@ -92,6 +92,8 @@ class TransformerDisPtrGen(TransformerDis2):
 
         self.k = 20
         self.inf = float('-inf')
+        self.big_gate_prob = args.get('big_gate_prob', 0.5)
+        self.expectation_prob = args.get('expectation_prob', 0.5)
         self.gate_mlp = MLP(self.gpt_dim)
         self.small_out = nn.Linear(self.gpt_dim, self.k)
 
@@ -104,8 +106,25 @@ class TransformerDisPtrGen(TransformerDis2):
 
     def get_small_logit(self, keyword_map, o):
         o = self.small_out(o)
+        # normalize
+        keyword_map = keyword_map * keyword_map.shape[-1] / keyword_map.sum(dim=-1, keepdim=True)
         o = torch.einsum('bkv,blk->blv', keyword_map, o)
         return o
+
+    def drop_connect(self, beta, x1, x2):
+        if not self.training:
+            logits = (1 - beta) * x1 + beta * x2
+        else:
+            # use sample for half, use true expectation for half
+            # beta_samples = beta.bernoulli().float()
+            beta_samples = (torch.rand(beta.shape).to(beta.device) > self.big_gate_prob).float()
+            rand_flags = (torch.rand(beta.shape).to(beta.device) > self.expectation_prob).float()
+            beta_rand = (1 - rand_flags) * beta + rand_flags * beta_samples
+            logits = (1 - beta_rand) * x1 + beta_rand * x2
+            if self.big_gate_prob == 0 and self.expectation_prob == 0:
+                assert (logits == x2).all(), "Error"
+        return logits
+
 
     def get_logits(self, o, keyword):
         keyword_top, keyword_top_ids = keyword.topk(k=self.k, dim=-1)
@@ -120,5 +139,6 @@ class TransformerDisPtrGen(TransformerDis2):
         beta = self.gate_keyword(embds, o)  # bl
         stats = {'copy_gate': beta.mean().item()}
         beta = beta.unsqueeze(-1)
-        logits = (1 - beta) * big_logit + beta * small_logit
+        # logits = (1 - beta) * big_logit + beta * small_logit
+        logits = self.drop_connect(beta, big_logit, small_logit)
         return logits, stats

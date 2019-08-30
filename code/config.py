@@ -20,13 +20,13 @@ config = {
     'eval_metric': True,
     'max_sentence_tokens': 50,
     'max_target_len': 30,  # max bpe token num in target: 69
-    'sampling_method': 'nucleus',
+    'sampling_method': 'greedy',
     'sampling_k': 8,
     'sampling_p': 0.9,
     'num_samples': 1,
 
-    'learning_rate': 4e-4,
-    'warmup_steps': 1000,
+    'learning_rate': 5e-5,
+    'warmup_steps': 4000,
     'grad_clip': None,
     'batch_sizes': {'train': 16, 'val': 16, 'test': 16},
     'max_epoch': 30,

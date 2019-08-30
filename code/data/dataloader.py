@@ -32,6 +32,7 @@ class DataLoader(data.DataLoader):
         self.tokenizer = kwargs.pop('tokenizer')
         self.make_batch = kwargs.pop('batch_func')
         self.max_sentence_tokens = kwargs.pop('max_sentence_tokens')
+        self.feature_name_map = kwargs.pop('feature_name_map')
 
         self.lemmatizer = WordNetLemmatizer()
 
@@ -42,7 +43,8 @@ class DataLoader(data.DataLoader):
         ids, sent_li = zip(*data_li)
         res = self.make_batch(self.tokenizer, sent_li, **self.dataset.global_data,
                               max_sentence_tokens=self.max_sentence_tokens,
-                              lemmatize=self.lemmatizer.lemmatize)
+                              lemmatize=self.lemmatizer.lemmatize,
+                              feature_name_map=self.feature_name_map)
         res = Munch(res)
         res.id = ids
         return res
@@ -63,7 +65,8 @@ def get_dataloaders(args, datasets, batch_func, tokenizer):
                                 shuffle=True, num_workers=args.num_workers,
                                 batch_func=batch_func,
                                 tokenizer=tokenizer, device=args.device,
-                                max_sentence_tokens=args.max_sentence_tokens)
+                                max_sentence_tokens=args.max_sentence_tokens,
+                                feature_name_map=args.feature_name_map)
         dataloaders[k] = dataloader
 
     return dataloaders

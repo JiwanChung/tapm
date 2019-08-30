@@ -201,7 +201,7 @@ def make_subset_mask_batch(tokenizer, data, random_idx=True,
                 'targets': targets}
 
 
-def make_feature_lm_batch_with_keywords(tokenizer, data, keywords=None, **kwargs):
+def make_feature_lm_batch_with_keywords(tokenizer, data, keywords=None, feature_name_map={}, **kwargs):
     # data: list of chunks: list of [item dict]
     data = jsonl_to_json(data)
     batch_sentences = data['target']
@@ -234,8 +234,9 @@ def make_feature_lm_batch_with_keywords(tokenizer, data, keywords=None, **kwargs
     targets, _ = pad(targets, tokenizer.pad_id)
     lengths, _ = pad(lengths, 0)
 
-    video = data['i3d']
-    image = data['resnet152_2']
+    feature_name_map = {v: k for k, v in feature_name_map.items()}
+    video = data[feature_name_map['video']]
+    image = data[feature_name_map['image']]
     image = pad_tensor(image, 0)
     video = pad_tensor(video, 0)
     if keywords is not None:
