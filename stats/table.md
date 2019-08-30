@@ -10,3 +10,5 @@
 | GPT2 | 0.0 | i3d, resnet | subset_1000 | greedy | GPT2 | 0.1157 | 0.0839 | 0.01131 | 0.2010 |
 | GPT2 | 0.5 | i3d, resnet | subset_1000 | greedy | GPT2 | 0.1358 | 0.0852 | 0.01324 | 0.2053 |
 | GPT2 | 0.7 | i3d, resnet | subset_1000 | greedy | GPT2 | 0.1391 | 0.0844 | 0.01248 | 0.2048 |
+| GPT2_keyword_matmul | 0.5 | i3d, resnet | subset_1000 | greedy | GPT2 | 0.1329 | 0.0849 | 0.01310 | 0.2049 |
+| GPT2_word_subset_matmul | 0.5 | i3d, resnet | subset_1000 | greedy | GPT2 | 0.0840 | 0.0756 | 0.00742 | 0.1820 |
