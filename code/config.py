@@ -11,6 +11,7 @@ config = {
     'extraction_threshold': 1,
     'extraction_min_words': 2,
     'feature_names': ['video', 'image'],
+    'feature_name_map': {'i3d': 'video', 'resnet152_2': 'image'},
     'max_vocab': None,
     'pretrained_embedding': None,
     # 'pretrained_embedding': 'glove.840B.300d',

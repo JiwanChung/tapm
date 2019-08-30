@@ -24,7 +24,7 @@ class TransformerDis2(TransformerDis):
         keyword = torch.matmul(keyword, self.keyword_map)
         keyword = self.smooth(keyword)
         o = self.net.lm_head(o)
-        return o * keyword.unsqueeze(1).expand(-1, o.shape[1], -1)
+        return o * keyword.unsqueeze(1).expand(-1, o.shape[1], -1), {}
 
     def smooth(self, probs):
         return probs + self.eps
@@ -47,7 +47,7 @@ class TransformerDis3(TransformerDis2):
     def get_logits(self, o, keyword):
         keyword = self.smooth(keyword)
         o = self.net.lm_head(o)
-        return o * keyword.unsqueeze(1).expand(-1, o.shape[1], -1)
+        return o * keyword.unsqueeze(1).expand(-1, o.shape[1], -1), {}
 
 
 class TransformerDisMoe(TransformerDis2):
@@ -83,4 +83,42 @@ class TransformerDisMoe(TransformerDis2):
         beta = self.gate_keyword(keyword, o)  # bln
         o = self.moe(o, beta)  # blnc
         o = self.net.lm_head(o)
+        return o, {}
+
+
+class TransformerDisPtrGen(TransformerDis2):
+    def __init__(self, args, transformer, tokenizer):
+        super(TransformerDisPtrGen, self).__init__(args, transformer, tokenizer)
+
+        self.k = 20
+        self.inf = float('-inf')
+        self.gate_mlp = MLP(self.gpt_dim)
+        self.small_out = nn.Linear(self.gpt_dim, self.k)
+
+    def gate_keyword(self, embds, o):
+        # bkc, blc
+        beta = torch.einsum('bkc,blc->blk', embds, o)
+        beta = beta.mean(dim=-1)  # bl
+        beta = torch.sigmoid(beta)
+        return beta
+
+    def get_small_logit(self, keyword_map, o):
+        o = self.small_out(o)
+        o = torch.einsum('bkv,blk->blv', keyword_map, o)
         return o
+
+    def get_logits(self, o, keyword):
+        keyword_top, keyword_top_ids = keyword.topk(k=self.k, dim=-1)
+        keyword_map = self.keyword_map.unsqueeze(0).expand(keyword_top_ids.shape[0], -1, -1)
+        keyword_map = keyword_map.gather(1, keyword_top_ids.unsqueeze(-1).expand(
+                                             -1, -1, keyword_map.shape[-1]))
+        # BKV
+        embds = torch.einsum('vc,bkv->bkc', self.net.transformer.wte.weight, keyword_map)
+        big_logit = self.net.lm_head(o)
+        o = self.gate_mlp(o)
+        small_logit = self.get_small_logit(keyword_map, o)
+        beta = self.gate_keyword(embds, o)  # bl
+        stats = {'copy_gate': beta.mean().item()}
+        beta = beta.unsqueeze(-1)
+        logits = (1 - beta) * big_logit + beta * small_logit
+        return logits, stats

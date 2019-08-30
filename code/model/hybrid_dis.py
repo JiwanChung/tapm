@@ -4,6 +4,7 @@ import torch
 from torch import nn
 import torch.nn.functional as F
 
+from utils import jsonl_to_json, mean
 from data.batcher import make_feature_lm_batch_with_keywords
 
 from .modules import Attention, GRU
@@ -149,7 +150,7 @@ class HybridDis(TransformerModel):
         if not self.use_context:
             c = torch.full_like(c.detach(), 0)
             c.requires_grad_(False)
-        return c, sent, hypo
+        return c, sent, hypo, {}
 
     def get_keyword(self, batch, features):
         return self.keyword_classifier(batch.keyword_masks, features)
@@ -173,12 +174,16 @@ class HybridDis(TransformerModel):
             keywords = batch.keyword_masks.float()
 
         res = []
+        vid_stats = []
         for v in range(V):
             feature = {k: val[:, v] for k, val in features.items()}
             c = self.rnn.init_c(B, self.context_dim, device=video.device) if hasattr(self, 'rnn') else None
             keyword = keywords[:, v] if keywords is not None else None
-            c, sent, _ = self.run_video(feature, c, v, L, sentences=sent_gt, keyword=keyword)
+            c, sent, _, vid_stat = self.run_video(feature, c, v, L, sentences=sent_gt, keyword=keyword)
+            vid_stats.append(vid_stat)
             res.append(sent)  # BLV
+        vid_stats = {k: mean(v) for k, v in jsonl_to_json(vid_stats).items()}
+        stats = {**stats, **vid_stats}
         del batch.sentences  # for generation
         return torch.stack(res, 1).contiguous(), batch.targets, reg_loss, stats, batch
 

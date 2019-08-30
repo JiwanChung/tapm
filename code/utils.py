@@ -60,6 +60,11 @@ def jsonl_to_json(x):
     return res
 
 
+def mean(x):
+    x = list(x)
+    return sum(x) / len(x)
+
+
 def cut_sample(data, n=100):
     if isinstance(data, list):
         return data[:n]

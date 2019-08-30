@@ -62,6 +62,8 @@ def make_groups(keys, chunk_size=5):
 def load_task1_with_features(args, path):
     data = load_task1_text(args, path)
     path = path.parent.glob(f"features/*")
+    path = [p for p in list(path) if p.name in args.feature_names or \
+            (p.name in args.feature_name_map and args.feature_name_map[p.name] in args.feature_names)]
     features = {}
     for p in path:
         print(f"loading feature {p}")
