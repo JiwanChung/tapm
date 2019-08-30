@@ -50,7 +50,10 @@ class KeywordClassifier(nn.Module):
             loss, _ = self.loss(hypo, keywords)
             hypo = torch.sigmoid(hypo)
             with torch.no_grad():
-                no_keyword_mask = keywords.byte().long().sum(dim=-1) != 0
+                keywords = keywords.byte().long()
+                keyword_num = keywords.sum(dim=-1)
+                no_keyword_mask = keyword_num != 0
+                stats['keyword_num'] = keyword_num.float().mean().cpu().item()
                 hypo_mask = hypo >= 0.5
                 keywords = keywords.byte()
                 intersection = (hypo_mask & keywords).float().sum(dim=-1)

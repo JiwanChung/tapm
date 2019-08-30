@@ -170,7 +170,7 @@ class HybridDis(TransformerModel):
         keywords, reg_loss, stats = self.get_keyword(batch, features)
         keywords = keywords.detach()
         if self.use_gt_keywords:
-            keywords = batch.keywords.float()
+            keywords = batch.keyword_masks.float()
 
         res = []
         for v in range(V):

@@ -10,7 +10,7 @@ config = {
     'extract_keyword': False,
     'extraction_threshold': 1,
     'extraction_min_words': 2,
-    'feature_names': None,
+    'feature_names': ['video', 'image'],
     'max_vocab': None,
     'pretrained_embedding': None,
     # 'pretrained_embedding': 'glove.840B.300d',
@@ -57,6 +57,4 @@ debug_options = {
 log_keys = [
     'sample',
     'model',
-    'learning_rate',
-    'keyword_ratio',
 ]

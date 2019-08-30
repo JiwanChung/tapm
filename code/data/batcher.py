@@ -206,7 +206,9 @@ def make_feature_lm_batch_with_keywords(tokenizer, data, keywords=None, **kwargs
     data = jsonl_to_json(data)
     batch_sentences = data['target']
     if keywords is not None:
-        keywords = torch.Tensor([tokenizer.convert_tokens_to_ids(token) for token in keywords]).long()
+        # [:len(keywords)] part is arbitrary, but it'll have to do for now
+        keywords = torch.Tensor(list(itertools.chain(*[tokenizer.encode(token) for token in keywords]))[:len(keywords)]).long()
+
     def get_text(sentences):
         sentences = [tokenizer.encode(t) for t in sentences]
         max_limit = kwargs.get('max_sentence_tokens', None)
@@ -226,6 +228,7 @@ def make_feature_lm_batch_with_keywords(tokenizer, data, keywords=None, **kwargs
             keyword_mask = [i.squeeze() for i in keyword_mask.split(1, dim=0)]
         targets, _ = pad(targets, tokenizer.pad_id)
         return sentences, lengths, targets, keyword_mask, word_subset
+
     sentences, lengths, targets, keyword_masks, word_subsets = zip(*[get_text(sentence) for sentence in batch_sentences])
     sentences, batch_lengths = pad(sentences, tokenizer.pad_id)
     targets, _ = pad(targets, tokenizer.pad_id)
