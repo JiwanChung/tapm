@@ -79,6 +79,8 @@ class KeywordClassifierWrapper(TransformerModel):
     def __init__(self, args, transformer, tokenizer):
         super().__init__()
 
+        self.tokenizer = tokenizer
+
         self.dim = args.get('dim', 512)
         self.video_dim = args.get('video_dim', 1024)
         self.image_dim = args.get('image_dim', 2048)
@@ -99,6 +101,7 @@ class KeywordClassifierWrapper(TransformerModel):
                     in {f: getattr(batch, f) for f \
                         in self.feature_names}.items()}
         hypo, loss, stats = self.net(batch.keyword_masks, features)
+        stats = {**stats, 'sentence_len': (batch.sentences != self.tokenizer.pad_id).float().sum(dim=-1).mean().item()}
         return None, None, loss, stats, batch
 
 

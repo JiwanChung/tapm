@@ -206,8 +206,14 @@ def make_feature_lm_batch_with_keywords(tokenizer, data, keywords=None, feature_
     data = jsonl_to_json(data)
     batch_sentences = data['target']
     if keywords is not None:
-        # [:len(keywords)] part is arbitrary, but it'll have to do for now
-        keywords = torch.Tensor(list(itertools.chain(*[tokenizer.encode(token) for token in keywords]))[:len(keywords)]).long()
+        # restore gpt token prefix
+        small_prefix = b'\xc4\xa1'.decode()
+        big_prefix = b'\xc4\xa0'.decode()
+        def bpe_capitalize(x):
+            return x.replace(small_prefix, big_prefix)
+        # [:len(keywords)] part is arbitrary, and causes some bugs apparently...
+        # keywords = torch.Tensor(list(itertools.chain(*[tokenizer.encode(token) for token in keywords]))[:len(keywords)]).long()
+        keywords = torch.Tensor([tokenizer.convert_tokens_to_ids([bpe_capitalize(token)])[0] for token in keywords]).long()
 
     def get_text(sentences):
         sentences = [tokenizer.encode(t) for t in sentences]

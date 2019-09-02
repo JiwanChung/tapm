@@ -107,7 +107,7 @@ class TransformerDisPtrGen(TransformerDis2):
     def get_small_logit(self, keyword_map, o):
         o = self.small_out(o)
         # normalize
-        keyword_map = keyword_map * keyword_map.shape[-1] / keyword_map.sum(dim=-1, keepdim=True)
+        # keyword_map = keyword_map * keyword_map.shape[-1] / keyword_map.sum(dim=-1, keepdim=True)
         o = torch.einsum('bkv,blk->blv', keyword_map, o)
         return o
 
@@ -139,6 +139,5 @@ class TransformerDisPtrGen(TransformerDis2):
         beta = self.gate_keyword(embds, o)  # bl
         stats = {'copy_gate': beta.mean().item()}
         beta = beta.unsqueeze(-1)
-        # logits = (1 - beta) * big_logit + beta * small_logit
         logits = self.drop_connect(beta, big_logit, small_logit)
         return logits, stats

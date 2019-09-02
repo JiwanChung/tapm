@@ -172,6 +172,7 @@ class HybridDis(TransformerModel):
         keywords = keywords.detach()
         if self.use_gt_keywords:
             keywords = batch.keyword_masks.float()
+        stats = {**stats, 'sentence_len': (batch.sentences != self.tokenizer.pad_id).float().sum(dim=-1).mean().item()}
 
         res = []
         vid_stats = []
