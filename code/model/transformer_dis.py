@@ -35,10 +35,10 @@ class TransformerDis(HybridDis):
         h = self.reduce_cat(h)
         return h
 
-    def get_logits(self, o, keyword):
-        return self.net.lm_head(o), {}
+    def get_logits(self, o, keyword, gt=None):
+        return self.net.lm_head(o), None, {}
 
-    def run_transformer(self, hypo, features, keyword):
+    def run_transformer(self, hypo, features, keyword, gt=None):
         h, past, head_mask = transformer_embed(self.net.transformer, hypo)
         h = self.add_keyword(h, keyword)
 
@@ -55,8 +55,8 @@ class TransformerDis(HybridDis):
         o = self.dropout(o)
         c = o.mean(dim=1)
         c = self.reduce_c(c)
-        logits, stats = self.get_logits(o, keyword)
-        return logits, c, stats
+        logits, loss, stats = self.get_logits(o, keyword, gt)
+        return logits, c, loss, stats
 
     def run_token(self, features, hypo, h, c, keyword):
         features = OrderedDict(sorted(features.items()))  # canonical ordering
@@ -69,10 +69,10 @@ class TransformerDis(HybridDis):
         features = OrderedDict(sorted(features.items()))  # canonical ordering
         for feature in self.feature_names:
             features[feature] = getattr(self, feature)(features[feature], None)
-        return self.run_transformer(hypo, features, keyword)
+        return self.run_transformer(hypo, features, keyword, gt=hypo)
 
     def generate_token(self, hypo, features, c, h, keyword):
-        logits, h, _ = self.run_transformer(hypo, features, keyword)
+        logits, h, _, _ = self.run_transformer(hypo, features, keyword)
         return logits, h
 
     def run_video(self, features, c, v, L, sentences=None, sampler=None,
@@ -90,8 +90,9 @@ class TransformerDis(HybridDis):
         hypo = s0.unsqueeze(-1)
 
         stats = {}
+        small_loss = None
         if sentences is not None:  # training
-            sent, h, stats = self.run_train(sentences[:, v], features, keyword)
+            sent, h, small_loss, stats = self.run_train(sentences[:, v], features, keyword)
         else:
             for w in range(L):
                 if eos_flags.all():
@@ -111,7 +112,7 @@ class TransformerDis(HybridDis):
         if not self.use_context:
             c = torch.full_like(c.detach(), 0)
             c.requires_grad_(False)
-        return c, sent, hypo, stats
+        return c, sent, hypo, small_loss, stats
 
 
 def transformer_embed(self, input_ids, position_ids=None, token_type_ids=None, past=None, head_mask=None):

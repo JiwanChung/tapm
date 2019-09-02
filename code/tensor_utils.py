@@ -1,12 +1,14 @@
 import torch
 
 
+'''
 def onehot(x, max_size):
     hot = torch.FloatTensor(*x.shape, max_size).to(x.device)
     x = x.unsqueeze(-1)
     hot.zero_()
     hot.scatter_(-1, x, 1)
     return hot.detach()
+'''
 
 
 def unsqueeze_expand(src, tgt):
@@ -45,3 +47,10 @@ def remove_cls_sep(x, tokenizer):
     dec_input = dec_input[:, :-1]  # remove sep
 
     return dec_input, targets
+
+
+def onehot(x, total=1000):
+    storage = torch.zeros(*x.shape, total).byte().to(x.device)
+    storage.scatter_(dim=-1, index=x.unsqueeze(-1), value=1)
+
+    return storage

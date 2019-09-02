@@ -3,6 +3,9 @@ from torch import nn
 import torch.nn.functional as F
 from einops import rearrange
 
+from tensor_utils import onehot
+from loss import SmoothLoss
+
 from .transformer_dis import TransformerDis
 from .keyword_classifier import KeywordClassifier
 from .modules import MLP
@@ -19,12 +22,13 @@ class TransformerDis2(TransformerDis):
     def add_keyword(self, h, keyword):
         return h
 
-    def get_logits(self, o, keyword):
+    def get_logits(self, o, keyword, gt=None):
         # BN * NV
-        keyword = torch.matmul(keyword, self.keyword_map)
+        if self.keyword_map is not None:
+            keyword = torch.matmul(keyword, self.keyword_map)
         keyword = self.smooth(keyword)
         o = self.net.lm_head(o)
-        return o * keyword.unsqueeze(1).expand(-1, o.shape[1], -1), {}
+        return o * keyword.unsqueeze(1).expand(-1, o.shape[1], -1), None, {}
 
     def smooth(self, probs):
         return probs + self.eps
@@ -44,10 +48,10 @@ class TransformerDis3(TransformerDis2):
     def get_keyword(self, batch, features):
         return self.keyword_classifier(batch.word_subsets, features)
 
-    def get_logits(self, o, keyword):
+    def get_logits(self, o, keyword, gt=None):
         keyword = self.smooth(keyword)
         o = self.net.lm_head(o)
-        return o * keyword.unsqueeze(1).expand(-1, o.shape[1], -1), {}
+        return o * keyword.unsqueeze(1).expand(-1, o.shape[1], -1), None, {}
 
 
 class TransformerDisMoe(TransformerDis2):
@@ -76,14 +80,14 @@ class TransformerDisMoe(TransformerDis2):
         beta = F.softmax(beta, dim=-1)
         return beta
 
-    def get_logits(self, o, keyword):
+    def get_logits(self, o, keyword, gt=None):
         # VC * NV -> NC
         embds = torch.einsum('vc,nv->nc', self.net.transformer.wte.weight, self.keyword_map)
         keyword = keyword.unsqueeze(-1) * embds  # BNC
         beta = self.gate_keyword(keyword, o)  # bln
         o = self.moe(o, beta)  # blnc
         o = self.net.lm_head(o)
-        return o, {}
+        return o, None, {}
 
 
 class TransformerDisPtrGen(TransformerDis2):
@@ -91,30 +95,35 @@ class TransformerDisPtrGen(TransformerDis2):
         super(TransformerDisPtrGen, self).__init__(args, transformer, tokenizer)
 
         self.k = 20
+        self.eval_random = False
+        self.small_logit_only = args.get('small_logit_only', False)
         self.inf = float('-inf')
         self.big_gate_prob = args.get('big_gate_prob', 0.5)
         self.expectation_prob = args.get('expectation_prob', 0.5)
         self.gate_mlp = MLP(self.gpt_dim)
-        self.small_out = nn.Linear(self.gpt_dim, self.k)
+        self.small_out = nn.Linear(self.gpt_dim, self.gpt_dim)
 
-    def gate_keyword(self, embds, o):
+        self.loss = SmoothLoss(padding_idx=-100)
+
+    def gate_keyword(self, o, embds):
         # bkc, blc
-        beta = torch.einsum('bkc,blc->blk', embds, o)
+        beta = self.gate_mlp(o)
+        o = torch.einsum('bkc,blc->blk', embds, o)
         beta = beta.mean(dim=-1)  # bl
         beta = torch.sigmoid(beta)
         return beta
 
-    def get_small_logit(self, keyword_map, o):
-        o = self.small_out(o)
-        # normalize
-        # keyword_map = keyword_map * keyword_map.shape[-1] / keyword_map.sum(dim=-1, keepdim=True)
-        o = torch.einsum('bkv,blk->blv', keyword_map, o)
-        return o
+    def get_small_logit(self, keyword_map, o, embds):
+        # BLC, BKC
+        o = self.small_out(o)  # BLC
+        o = torch.einsum('bkc,blc->blk', embds, o)
+        small_logit = torch.einsum('bkv,blk->blv', keyword_map, o)
+        return small_logit, o
 
     def drop_connect(self, beta, x1, x2):
-        if not self.training:
-            logits = (1 - beta) * x1 + beta * x2
-        else:
+        if self.small_logit_only:
+            logits = x2
+        if self.training or self.eval_random:
             # use sample for half, use true expectation for half
             # beta_samples = beta.bernoulli().float()
             beta_samples = (torch.rand(beta.shape).to(beta.device) > self.big_gate_prob).float()
@@ -123,21 +132,43 @@ class TransformerDisPtrGen(TransformerDis2):
             logits = (1 - beta_rand) * x1 + beta_rand * x2
             if self.big_gate_prob == 0 and self.expectation_prob == 0:
                 assert (logits == x2).all(), "Error"
+        else:
+            logits = (1 - beta) * x1 + beta * x2
         return logits
 
 
-    def get_logits(self, o, keyword):
+    def get_logits(self, o, keyword, gt=None):
         keyword_top, keyword_top_ids = keyword.topk(k=self.k, dim=-1)
-        keyword_map = self.keyword_map.unsqueeze(0).expand(keyword_top_ids.shape[0], -1, -1)
-        keyword_map = keyword_map.gather(1, keyword_top_ids.unsqueeze(-1).expand(
-                                             -1, -1, keyword_map.shape[-1]))
-        # BKV
-        embds = torch.einsum('vc,bkv->bkc', self.net.transformer.wte.weight, keyword_map)
+        if self.keyword_map is not None:
+            keyword_map = self.keyword_map.unsqueeze(0).expand(keyword_top_ids.shape[0], -1, -1)
+            keyword_map = keyword_map.gather(1, keyword_top_ids.unsqueeze(-1).expand(
+                                                -1, -1, keyword_map.shape[-1]))
+            # BKV
+            embds = torch.einsum('vc,bkv->bkc', self.net.transformer.wte.weight, keyword_map)
+        else:
+            keyword_map = onehot(keyword_top_ids, total=len(self.tokenizer)).float()
+            embds = self.net.transformer.wte(keyword_top_ids)
         big_logit = self.net.lm_head(o)
-        o = self.gate_mlp(o)
-        small_logit = self.get_small_logit(keyword_map, o)
-        beta = self.gate_keyword(embds, o)  # bl
+        small_logit, small_vocab_logit = self.get_small_logit(keyword_map, o, embds)
+        beta = self.gate_keyword(o, embds)  # bl
         stats = {'copy_gate': beta.mean().item()}
+        loss = None
+        if gt is not None:
+            small_tgt_val, small_tgt = (keyword_map.argmax(dim=-1).unsqueeze(1) != gt.unsqueeze(-1)).max(dim=-1)
+            tgt_mask = small_tgt_val == 0
+            small_tgt.masked_scatter_(tgt_mask, torch.Tensor([-100]).long().to(small_tgt.device))
+            loss, _ = self.loss(small_vocab_logit, small_tgt)
+            stats = {**stats, 'small_ce_loss': loss.mean().item()}
         beta = beta.unsqueeze(-1)
         logits = self.drop_connect(beta, big_logit, small_logit)
-        return logits, stats
+        return logits, loss, stats
+
+
+class TransformerDisSmallVocab(TransformerDisPtrGen):
+    def __init__(self, args, transformer, tokenizer):
+        super(TransformerDisSmallVocab, self).__init__(args, transformer, tokenizer)
+
+        self.k = args.get('keyword_top_k', 20)
+        self.eval_random = True
+        self.small_logit_only = True
+        self.use_word_subset = True

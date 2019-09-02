@@ -39,6 +39,7 @@ class HybridDis(TransformerModel):
         self.share_in_out = args.get('share_in_out',
                                      False)
         self.use_gt_keywords = args.get('use_gt_keywords', False)
+        self.use_word_subset = args.get('use_word_subset', False)
         self.max_target_len = args.max_target_len
         self.tokenizer = tokenizer
         self.vocab_size = len(tokenizer)
@@ -79,8 +80,12 @@ class HybridDis(TransformerModel):
 
     def get_keyword_map(self, ids):
         # get NV
-        storage = torch.zeros(ids.shape[0], len(self.tokenizer)).float().to(ids.device)
-        storage.scatter_(-1, ids.unsqueeze(-1), 1)
+        if not self.use_word_subset:
+            storage = torch.zeros(ids.shape[0], len(self.tokenizer)).float().to(ids.device)
+            storage.scatter_(-1, ids.unsqueeze(-1), 1)
+        else:
+            # storage = torch.eye(len(self.tokenizer)).float().to(ids.device)
+            storage = None
         return storage
 
     def init_weights(self):
@@ -150,7 +155,7 @@ class HybridDis(TransformerModel):
         if not self.use_context:
             c = torch.full_like(c.detach(), 0)
             c.requires_grad_(False)
-        return c, sent, hypo, {}
+        return c, sent, hypo, None, {}
 
     def get_keyword(self, batch, features):
         return self.keyword_classifier(batch.keyword_masks, features)
@@ -171,21 +176,28 @@ class HybridDis(TransformerModel):
         keywords, reg_loss, stats = self.get_keyword(batch, features)
         keywords = keywords.detach()
         if self.use_gt_keywords:
-            keywords = batch.keyword_masks.float()
+            if not self.use_word_subset:
+                keywords = batch.keyword_masks.float()
+            else:
+                keywords = batch.word_subsets.float()
         stats = {**stats, 'sentence_len': (batch.sentences != self.tokenizer.pad_id).float().sum(dim=-1).mean().item()}
 
         res = []
         vid_stats = []
+        losses = []
         for v in range(V):
             feature = {k: val[:, v] for k, val in features.items()}
             c = self.rnn.init_c(B, self.context_dim, device=video.device) if hasattr(self, 'rnn') else None
             keyword = keywords[:, v] if keywords is not None else None
-            c, sent, _, vid_stat = self.run_video(feature, c, v, L, sentences=sent_gt, keyword=keyword)
+            c, sent, _, small_loss, vid_stat = self.run_video(feature, c, v, L, sentences=sent_gt, keyword=keyword)
+            losses.append(small_loss)
             vid_stats.append(vid_stat)
             res.append(sent)  # BLV
         vid_stats = {k: mean(v) for k, v in jsonl_to_json(vid_stats).items()}
         stats = {**stats, **vid_stats}
         del batch.sentences  # for generation
+        small_loss = None if losses[0] is None else mean(losses)
+        reg_loss = reg_loss + small_loss
         return torch.stack(res, 1).contiguous(), batch.targets, reg_loss, stats, batch
 
 
