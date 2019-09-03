@@ -38,12 +38,7 @@ class TransformerDis3(TransformerDis2):
     def __init__(self, args, transformer, tokenizer):
         super(TransformerDis3, self).__init__(args, transformer, tokenizer)
 
-        del self.keyword_classifier
-
         self.eps = 0
-        self.keyword_classifier = KeywordClassifier(
-            len(tokenizer), self.dim, self.feature_names,
-            self.video_dim, self.image_dim)
 
     def get_keyword(self, batch, features):
         return self.keyword_classifier(batch.word_subsets, features)
@@ -172,3 +167,6 @@ class TransformerDisSmallVocab(TransformerDisPtrGen):
         self.eval_random = True
         self.small_logit_only = True
         self.use_word_subset = True
+
+    def get_keyword(self, batch, features):
+        return self.keyword_classifier(batch.word_subsets, features)

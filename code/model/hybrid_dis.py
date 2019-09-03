@@ -44,8 +44,9 @@ class HybridDis(TransformerModel):
         self.tokenizer = tokenizer
         self.vocab_size = len(tokenizer)
 
+        keyword_num = len(tokenizer) if self.use_word_subset else self.keyword_num
         self.keyword_classifier = KeywordClassifier(
-            self.keyword_num, self.dim, self.feature_names,
+            keyword_num, self.dim, self.feature_names,
             self.video_dim, self.image_dim)
 
         for feature in self.feature_names:
@@ -158,7 +159,8 @@ class HybridDis(TransformerModel):
         return c, sent, hypo, None, {}
 
     def get_keyword(self, batch, features):
-        return self.keyword_classifier(batch.keyword_masks, features)
+        keyword = batch.word_subsets if self.use_word_subset else batch.keyword_masks
+        return self.keyword_classifier(keyword, features)
 
     def forward(self, batch, **kwargs):
         # BVLC, BVL
