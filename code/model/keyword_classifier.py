@@ -12,7 +12,7 @@ from .transformer_model import TransformerModel
 class KeywordClassifier(nn.Module):
     def __init__(self, keyword_num, dim, feature_names,
                  video_dim, image_dim, gamma=2, dropout=0,
-                 recall_k=20):
+                 recall_k=20, loss_type='bce'):
         super(KeywordClassifier, self).__init__()
 
         self.eps = 1e-8
@@ -29,8 +29,10 @@ class KeywordClassifier(nn.Module):
         self.res_block = ResBlock(self.dim, dropout)
         self.out = nn.Linear(self.dim, self.keyword_num)
 
-        # self.loss = FocalLoss(gamma)
-        self.loss = BinaryCELoss()
+        self.loss = {
+            'bce': BinaryCELoss(),
+            'focal': FocalLoss(gamma)
+        }[loss_type.lower()]
 
     def forward(self, keywords, features):
         # BVK, BVNC
@@ -88,10 +90,13 @@ class KeywordClassifierWrapper(TransformerModel):
         self.dropout_ratio = args.get('dropout', 0.5)
         self.feature_names = args.get('feature_names',
                                       ['video', 'image'])
+        self.keyword_loss_type = args.get('keyword_classification_loss', 'bce')
 
         self.net = KeywordClassifier(
             self.keyword_num, self.dim, self.feature_names,
-            self.video_dim, self.image_dim, self.dropout_ratio)
+            self.video_dim, self.image_dim, self.dropout_ratio,
+            loss_type=self.keyword_loss_type
+        )
 
     def make_batch(self, *args, **kwargs):
         return make_feature_lm_batch_with_keywords(*args, **kwargs)
@@ -120,11 +125,14 @@ class WordSubsetClassifier(TransformerModel):
         self.dropout_ratio = args.get('dropout', 0.5)
         self.feature_names = args.get('feature_names',
                                       ['video', 'image'])
+        self.k = args.get('keyword_top_k', 20)
+        self.keyword_loss_type = args.get('keyword_classification_loss', 'bce')
 
         self.net = KeywordClassifier(
             len(tokenizer), self.dim, self.feature_names,
             self.video_dim, self.image_dim, self.dropout_ratio,
-            recall_k=1000
+            recall_k=self.k,
+            loss_type=self.keyword_loss_type
         )
 
     def make_batch(self, *args, **kwargs):

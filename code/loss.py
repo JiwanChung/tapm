@@ -71,7 +71,8 @@ class FocalLoss(_Loss):
 
         self.gamma = gamma
 
-    def forward(self, hypo, tgt):
+    def forward(self, hypo_logit, tgt):
+        hypo = F.sigmoid(hypo_logit)
         hypo = hypo.contiguous()
         tgt = tgt.contiguous().byte().float()
 

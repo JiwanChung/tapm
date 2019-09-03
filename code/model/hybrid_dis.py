@@ -43,11 +43,16 @@ class HybridDis(TransformerModel):
         self.max_target_len = args.max_target_len
         self.tokenizer = tokenizer
         self.vocab_size = len(tokenizer)
+        self.k = args.get('keyword_top_k', 20)
+        self.keyword_loss_type = args.get('keyword_classification_loss', 'bce')
 
         keyword_num = len(tokenizer) if self.use_word_subset else self.keyword_num
         self.keyword_classifier = KeywordClassifier(
             keyword_num, self.dim, self.feature_names,
-            self.video_dim, self.image_dim)
+            self.video_dim, self.image_dim, self.dropout_ratio,
+            recall_k=self.k,
+            loss_type=self.keyword_loss_type
+        )
 
         for feature in self.feature_names:
             setattr(self, feature, FeatureEncoder(getattr(self, f"{feature}_dim"), self.dim))

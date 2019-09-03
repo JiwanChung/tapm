@@ -7,7 +7,6 @@ from tensor_utils import onehot
 from loss import SmoothLoss
 
 from .transformer_dis import TransformerDis
-from .keyword_classifier import KeywordClassifier
 from .modules import MLP
 
 
@@ -161,12 +160,12 @@ class TransformerDisPtrGen(TransformerDis2):
 
 class TransformerDisSmallVocab(TransformerDisPtrGen):
     def __init__(self, args, transformer, tokenizer):
+        args.use_word_subset = True
         super(TransformerDisSmallVocab, self).__init__(args, transformer, tokenizer)
 
         self.k = args.get('keyword_top_k', 20)
         self.eval_random = True
         self.small_logit_only = True
-        self.use_word_subset = True
 
     def get_keyword(self, batch, features):
         return self.keyword_classifier(batch.word_subsets, features)
