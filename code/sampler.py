@@ -83,6 +83,12 @@ class CaptionSampler(nn.Module):
                     in {f: getattr(batch, f) for f \
                         in self.model.feature_names}.items()}
         keywords, reg_loss, stats = self.model.get_keyword(batch, features)
+        keywords = keywords.detach()
+        if self.model.use_gt_keywords:
+            if not self.model.use_word_subset:
+                keywords = batch.keyword_masks.float()
+            else:
+                keywords = batch.word_subsets.float()
         with torch.no_grad():
             for i in range(B):
                 vid = []
@@ -106,6 +112,12 @@ class CaptionSampler(nn.Module):
                     in {f: getattr(batch, f) for f \
                         in self.model.feature_names}.items()}
         keywords, reg_loss, stats = self.model.get_keyword(batch, features)
+        keywords = keywords.detach()
+        if self.model.use_gt_keywords:
+            if not self.model.use_word_subset:
+                keywords = batch.keyword_masks.float()
+            else:
+                keywords = batch.word_subsets.float()
         with torch.no_grad():
             vid = []
             for v in range(V):
