@@ -65,7 +65,7 @@ def get_assets_zip_provider():
   """
   path = os.path.join(tf.resource_loader.get_data_files_path(), 'webfiles.zip')
   if not os.path.exists(path):
-        print('webfiles.zip static assets not found: %s', path)
+        # print('webfiles.zip static assets not found: %s', path)
         return None
   return lambda: open(path, 'rb')
 
