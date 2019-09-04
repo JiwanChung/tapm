@@ -28,7 +28,9 @@ def move_device(batch, to=-1):
             batch[key] = tensor.to(to)
         elif tensor is None:
             batch[key] = None
-        else:
+        elif isinstance(tensor, dict):
+            batch[key] = tensor
+        elif isinstance(tensor, list):
             li = []
             for t in tensor:
                 if torch.is_tensor(t):

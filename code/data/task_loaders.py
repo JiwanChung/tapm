@@ -39,9 +39,9 @@ def load_task1_group_with_features(args, path):
 def load_task1_group_with_features_and_keyword(args, path):
     data, _ = load_task1_group_with_features(args, path)
     keywords = load_keyword_only(args, path)
-    keywords = list(keywords.keys())
+    total = load_keyword_only(args, path, name='keywords_gpt_total.json')
 
-    return data, {'keywords': keywords}
+    return data, {'keywords': keywords, 'word_counter': total}
 
 
 def make_groups(keys, chunk_size=5):
@@ -119,10 +119,12 @@ def load_keywords(args, path):
     return data, {'keywords': keywords}
 
 
-def load_keyword_only(args, path):
-    paths = path.parent.glob(f"keywords/{args.keyword_name}*")
+def load_keyword_only(args, path, name=None):
+    if name is None:
+        name = args.keyword_name
+    paths = path.parent.glob(f"keywords/{name}*")
     paths = list(sorted(list(paths)))
-    assert len(paths) > 0, f"no keyword candidate for {args.keyword_name}"
+    assert len(paths) > 0, f"no keyword candidate for {name}"
     path = paths[0]
     print(f"loading keyword from {path}")
     assert path.is_file(), f"keyword {path} is not a file"

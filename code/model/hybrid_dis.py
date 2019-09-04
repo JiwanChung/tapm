@@ -5,7 +5,7 @@ from torch import nn
 import torch.nn.functional as F
 
 from utils import jsonl_to_json, mean
-from data.batcher import make_feature_lm_batch_with_keywords
+from data.batcher import make_feature_lm_batch_with_keywords, ConvertToken
 
 from .modules import Attention, GRU
 from .scn_rnn import SCNLSTM
@@ -27,6 +27,8 @@ class HybridDis(TransformerModel):
 
     def __init__(self, args, transformer, tokenizer):
         super(HybridDis, self).__init__()
+
+        self.eps = 1e-09
 
         self.dim = args.get('dim', 512)
         self.video_dim = args.get('video_dim', 1024)
@@ -95,6 +97,24 @@ class HybridDis(TransformerModel):
             # storage = torch.eye(len(self.tokenizer)).float().to(ids.device)
             storage = None
         return storage
+
+    def get_keyword_freq(self, batch, device):
+        if not self.use_word_subset:
+            c = batch.keyword_counter
+        else:
+            c = batch.word_counter
+
+        convert_token = ConvertToken()
+        c = {convert_token(self.tokenizer, k): v for k, v in c.items()}
+        ids, freq = zip(*c.items())
+        ids = torch.LongTensor(list(ids)).to(device)
+        freq = torch.FloatTensor(list(freq)).to(device)
+        t = torch.zeros(self.vocab_size).float().to(device)
+        t.scatter_(0, ids, freq)
+        t = t / (t.sum(dim=-1) + self.eps)  # normalize
+        t.requires_grad_(False)
+
+        return t
 
     def init_weights(self):
         init_range = 0.1
@@ -178,6 +198,8 @@ class HybridDis(TransformerModel):
 
         if (not hasattr(self, 'keyword_map')) and hasattr(batch, 'keyword_map'):
             self.keyword_map = self.get_keyword_map(batch.keyword_map)
+        if (not hasattr(self, 'keyword_freq')) and hasattr(batch, 'word_counter'):
+            self.keyword_freq = self.get_keyword_freq(batch, video.device)
 
         features = {k: val for k, val \
                     in {f: getattr(batch, f) for f \

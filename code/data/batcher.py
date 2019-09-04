@@ -201,19 +201,37 @@ def make_subset_mask_batch(tokenizer, data, random_idx=True,
                 'targets': targets}
 
 
-def make_feature_lm_batch_with_keywords(tokenizer, data, keywords=None, feature_name_map={}, **kwargs):
+class BPECap(object):
+    def __init__(self):
+        super(BPECap, self).__init__()
+        self.small_prefix = b'\xc4\xa1'.decode()
+        self.big_prefix = b'\xc4\xa0'.decode()
+
+    def __call__(self, x):
+        return x.replace(self.small_prefix, self.big_prefix)
+
+
+class ConvertToken(object):
+    def __init__(self):
+        super(ConvertToken, self).__init__()
+
+        self.bpe_capitalize = BPECap()
+
+    def __call__(self, tokenizer, token):
+        return tokenizer.convert_tokens_to_ids([self.bpe_capitalize(token)])[0]
+
+
+def make_feature_lm_batch_with_keywords(tokenizer, data, keywords=None, word_counter=None, feature_name_map={}, **kwargs):
     # data: list of chunks: list of [item dict]
     data = jsonl_to_json(data)
     batch_sentences = data['target']
+    keyword_counter = keywords
     if keywords is not None:
         # restore gpt token prefix
-        small_prefix = b'\xc4\xa1'.decode()
-        big_prefix = b'\xc4\xa0'.decode()
-        def bpe_capitalize(x):
-            return x.replace(small_prefix, big_prefix)
         # [:len(keywords)] part is arbitrary, and causes some bugs apparently...
         # keywords = torch.Tensor(list(itertools.chain(*[tokenizer.encode(token) for token in keywords]))[:len(keywords)]).long()
-        keywords = torch.Tensor([tokenizer.convert_tokens_to_ids([bpe_capitalize(token)])[0] for token in keywords]).long()
+        convert_token = ConvertToken()
+        keywords = torch.Tensor([convert_token(tokenizer, token) for token in list(keywords.keys())]).long()
 
     def get_text(sentences):
         sentences = [tokenizer.encode(t) for t in sentences]
@@ -264,7 +282,9 @@ def make_feature_lm_batch_with_keywords(tokenizer, data, keywords=None, feature_
             'vid': data['vid'],
             'keyword_masks': keyword_masks,
             'keyword_map': keywords,
-            'word_subsets': word_subsets}
+            'word_subsets': word_subsets,
+            'keyword_counter': keyword_counter,
+            'word_counter': word_counter}
 
 
 def pad(x, pad_id=0):

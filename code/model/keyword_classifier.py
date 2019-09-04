@@ -70,6 +70,7 @@ class KeywordClassifier(nn.Module):
                 keywords = keywords.byte().long()
                 keyword_num = keywords.sum(dim=-1)
                 no_keyword_mask = keyword_num != 0
+                stats['keyword_loss'] = loss.mean().item()
                 stats['keyword_num'] = keyword_num.float().mean().cpu().item()
                 hypo_mask = hypo >= 0.5
                 keywords = keywords.byte()

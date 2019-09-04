@@ -130,9 +130,19 @@ class TransformerDisPtrGen(TransformerDis2):
             logits = (1 - beta) * x1 + beta * x2
         return logits
 
+    def add_zero_keyword_bias(self, k):
+        # any value > 0 should be selected first
+        t = torch.zeros_like(k).float()
+        t.masked_scatter_(k != 0, torch.ones(1).float().to(k.device).view(1, 1).contiguous().expand(*k.shape))
+        k = k + t
+        t.fill_(0)
+        t.masked_scatter_(k == 0, self.keyword_freq.unsqueeze(0).expand(k.shape[0], -1))
+        k = k + t
+        return k
 
     def get_logits(self, o, keyword, gt=None):
-        keyword_top, keyword_top_ids = keyword.topk(k=self.k, dim=-1)
+        keyword_with_bias = self.add_zero_keyword_bias(keyword)
+        keyword_top, keyword_top_ids = keyword_with_bias.topk(k=self.k, dim=-1)
         if self.keyword_map is not None:
             keyword_map = self.keyword_map.unsqueeze(0).expand(keyword_top_ids.shape[0], -1, -1)
             keyword_map = keyword_map.gather(1, keyword_top_ids.unsqueeze(-1).expand(
