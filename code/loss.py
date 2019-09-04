@@ -1,13 +1,7 @@
-# Copyright (c) 2017-present, Facebook, Inc.
-# All rights reserved.
-#
-# This source code is licensed under the license found in the LICENSE file in
-# the root directory of this source tree. An additional grant of patent rights
-# can be found in the PATENTS file in the same directory.
 
-# from fairseq
 import math
 
+import torch
 from torch import nn
 import torch.nn.functional as F
 from torch.nn.modules.loss import _Loss
@@ -28,6 +22,8 @@ class Loss(nn.CrossEntropyLoss):
         return loss, {}
 
 
+# from fairseq (github.com/facebook/fairseq)
+# with all rights reserved
 # label smoothed cross entropy
 class SmoothLoss(_Loss):
     def __init__(self, size_average=None, reduce=None, reduction='mean', eps=0, padding_idx=0):
@@ -102,5 +98,25 @@ class BinaryCELoss(nn.BCEWithLogitsLoss):
         tgt = tgt.contiguous().byte().float()
 
         loss = super().forward(hypo, tgt)
+
+        return loss, {}
+
+
+class BinaryCERecallLoss(_Loss):
+    def __init__(self, recall_weight=1, reduction='mean'):
+        super(BinaryCERecallLoss, self).__init__(reduction=reduction)
+
+        self.reduction = reduction
+        self.weight = recall_weight
+
+    def forward(self, hypo, tgt):
+        # BK
+        hypo = hypo.contiguous()
+        tgt = tgt.contiguous().byte().float()
+        recall_weight = torch.FloatTensor([self.weight]).to(hypo.device).expand(hypo.shape[-1])
+
+        loss = F.binary_cross_entropy_with_logits(hypo, tgt,
+                                                  pos_weight=recall_weight,
+                                                  reduction=self.reduction)
 
         return loss, {}

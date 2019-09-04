@@ -7,6 +7,7 @@ import torch.nn.functional as F
 
 from .hybrid_dis import HybridDis
 from debug_utils import timeit
+from .keyword_classifier import KeywordClassifier
 
 
 class TransformerDis(HybridDis):
@@ -20,6 +21,14 @@ class TransformerDis(HybridDis):
         self.net = transformer
         self.net.train()
         self.gpt_dim = self.net.transformer.config.n_embd
+
+        self.keyword_classifier = KeywordClassifier(
+            self.net.transformer.wte,
+            self.keyword_num, self.dim, self.feature_names,
+            self.video_dim, self.image_dim, self.dropout_ratio,
+            recall_k=self.k,
+            loss_type=self.keyword_loss_type
+        )
 
         for feature in self.feature_names:
             setattr(self, feature, FeatureEncoder(getattr(self, f"{feature}_dim"), self.gpt_dim))

@@ -46,20 +46,22 @@ class HybridDis(TransformerModel):
         self.k = args.get('keyword_top_k', 20)
         self.keyword_loss_type = args.get('keyword_classification_loss', 'bce')
 
-        keyword_num = len(tokenizer) if self.use_word_subset else self.keyword_num
-        self.keyword_classifier = KeywordClassifier(
-            keyword_num, self.dim, self.feature_names,
-            self.video_dim, self.image_dim, self.dropout_ratio,
-            recall_k=self.k,
-            loss_type=self.keyword_loss_type
-        )
-
         for feature in self.feature_names:
             setattr(self, feature, FeatureEncoder(getattr(self, f"{feature}_dim"), self.dim))
         self.encoder = nn.Linear(len(self.feature_names) * self.dim, self.dim)
         self.pretrained_embedding = args.get('pretrained_embedding', False)
         self.wte_dim = 300 if self.pretrained_embedding else self.dim
         self.wte = nn.Embedding(self.vocab_size, self.wte_dim)
+
+        self.keyword_num = len(tokenizer) if self.use_word_subset else self.keyword_num
+        self.keyword_classifier = KeywordClassifier(
+            self.wte,
+            self.keyword_num, self.dim, self.feature_names,
+            self.video_dim, self.image_dim, self.dropout_ratio,
+            recall_k=self.k,
+            loss_type=self.keyword_loss_type
+        )
+
         self.context_dim = self.dim // 4
         num_layers = 1
         self.rnn = {

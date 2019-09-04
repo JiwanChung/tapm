@@ -88,7 +88,7 @@ class TransformerDisPtrGen(TransformerDis2):
     def __init__(self, args, transformer, tokenizer):
         super(TransformerDisPtrGen, self).__init__(args, transformer, tokenizer)
 
-        self.k = 20
+        self.k = args.get('keyword_top_k', 20)
         self.eval_random = False
         self.small_logit_only = args.get('small_logit_only', False)
         self.inf = float('-inf')
@@ -99,8 +99,8 @@ class TransformerDisPtrGen(TransformerDis2):
 
         self.loss = SmoothLoss(padding_idx=-100)
 
-    def gate_keyword(self, o, embds):
-        # bkc, blc
+    def gate_keyword(self, o, embds, small_logit):
+        # bkc, blc, blv
         beta = self.gate_mlp(o)
         o = torch.einsum('bkc,blc->blk', embds, o)
         beta = beta.mean(dim=-1)  # bl
@@ -144,7 +144,7 @@ class TransformerDisPtrGen(TransformerDis2):
             embds = self.net.transformer.wte(keyword_top_ids)
         big_logit = self.net.lm_head(o)
         small_logit, small_vocab_logit = self.get_small_logit(keyword_map, o, embds)
-        beta = self.gate_keyword(o, embds)  # bl
+        beta = self.gate_keyword(o, embds, small_logit)  # bl
         stats = {'copy_gate': beta.mean().item()}
         loss = None
         if gt is not None:
@@ -157,6 +157,22 @@ class TransformerDisPtrGen(TransformerDis2):
         logits = self.drop_connect(beta, big_logit, small_logit)
         return logits, loss, stats
 
+class TransformerDisPtrGen2(TransformerDisPtrGen):
+    def __init__(self, args, transformer, tokenizer):
+        super(TransformerDisPtrGen2, self).__init__(args, transformer, tokenizer)
+
+        del self.gate_mlp
+
+        keyword_bias = torch.ones(self.keyword_num).float()
+        keyword_bias = keyword_bias * 0.5 / self.keyword_num
+        keyword_bias.requires_grad_(True)
+        self.keyword_bias = nn.Parameter(keyword_bias)
+
+    def gate_keyword(self, o, embds, small_logit):
+        # bkc, blc, blv
+        beta = torch.einsum('blv,v->bl', small_logit, self.keyword_bias)
+        beta = torch.sigmoid(beta)
+        return beta
 
 class TransformerDisSmallVocab(TransformerDisPtrGen):
     def __init__(self, args, transformer, tokenizer):

@@ -1,16 +1,18 @@
+import copy
+
 import torch
 from torch import nn
 import torch.nn.functional as F
 
 from data.batcher import make_feature_lm_batch_with_keywords
 
-from loss import FocalLoss, BinaryCELoss
+from loss import FocalLoss, BinaryCELoss, BinaryCERecallLoss
 from .modules import ResBlock
 from .transformer_model import TransformerModel
 
 
 class KeywordClassifier(nn.Module):
-    def __init__(self, keyword_num, dim, feature_names,
+    def __init__(self, wte, keyword_num, dim, feature_names,
                  video_dim, image_dim, gamma=2, dropout=0,
                  recall_k=20, loss_type='bce'):
         super(KeywordClassifier, self).__init__()
@@ -23,16 +25,29 @@ class KeywordClassifier(nn.Module):
         self.dim = dim
         self.video_dim = video_dim
         self.image_dim = image_dim
+        self.recall_weight = 100
+
+        # self.wte = copy.deepcopy(wte)
+        # self.wte.weight.requires_grad_(False)
+        # self.wte.train()
 
         for feature in self.feature_names:
             setattr(self, feature, nn.Linear(getattr(self, f"{feature}_dim"), self.dim))
         self.res_block = ResBlock(self.dim, dropout)
+        # self.out_linear = nn.Linear(self.dim, self.keyword_num)
+        # self.out = self.out_shared if self.keyword_num == self.wte.weight.shape[0] else self.out_linear
         self.out = nn.Linear(self.dim, self.keyword_num)
 
         self.loss = {
             'bce': BinaryCELoss(),
-            'focal': FocalLoss(gamma)
+            'focal': FocalLoss(gamma),
+            'recall': BinaryCERecallLoss(recall_weight=self.recall_weight)
         }[loss_type.lower()]
+
+    '''
+    def out_shared(self, x):
+        return torch.matmul(x, self.wte.weight.t())
+    '''
 
     def forward(self, keywords, features):
         # BVK, BVNC
@@ -74,7 +89,7 @@ class KeywordClassifier(nn.Module):
 
 
 class KeywordClassifierWrapper(TransformerModel):
-    transformer_name = 'none'  # assign transformer_name = 'bert' to use BPE
+    transformer_name = 'gpt2'  # assign transformer_name = 'bert' to use BPE
     model_type = 'caption'
     use_keyword = False
 
@@ -92,8 +107,10 @@ class KeywordClassifierWrapper(TransformerModel):
                                       ['video', 'image'])
         self.keyword_loss_type = args.get('keyword_classification_loss', 'bce')
 
+        self.gpt_dim = transformer.transformer.config.n_embd
         self.net = KeywordClassifier(
-            self.keyword_num, self.dim, self.feature_names,
+            transformer.transformer.wte,
+            self.keyword_num, self.gpt_dim, self.feature_names,
             self.video_dim, self.image_dim, self.dropout_ratio,
             loss_type=self.keyword_loss_type
         )
@@ -111,7 +128,7 @@ class KeywordClassifierWrapper(TransformerModel):
 
 
 class WordSubsetClassifier(TransformerModel):
-    transformer_name = 'none'  # assign transformer_name = 'bert' to use BPE
+    transformer_name = 'gpt2'  # assign transformer_name = 'bert' to use BPE
     model_type = 'caption'
     use_keyword = False
 
@@ -128,8 +145,10 @@ class WordSubsetClassifier(TransformerModel):
         self.k = args.get('keyword_top_k', 20)
         self.keyword_loss_type = args.get('keyword_classification_loss', 'bce')
 
+        self.gpt_dim = transformer.transformer.config.n_embd
         self.net = KeywordClassifier(
-            len(tokenizer), self.dim, self.feature_names,
+            transformer.transformer.wte,
+            len(tokenizer), self.gpt_dim, self.feature_names,
             self.video_dim, self.image_dim, self.dropout_ratio,
             recall_k=self.k,
             loss_type=self.keyword_loss_type
