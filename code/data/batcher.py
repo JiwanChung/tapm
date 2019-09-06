@@ -287,6 +287,32 @@ def make_feature_lm_batch_with_keywords(tokenizer, data, keywords=None, word_cou
             'word_counter': word_counter}
 
 
+def make_blank_filling_batch(tokenizer, data, feature_name_map={}, **kwargs):
+    data = jsonl_to_json(data)
+    sentences = data['input']
+    targets = data['target']
+
+    feature_name_map = {v: k for k, v in feature_name_map.items()}
+    video = data[feature_name_map['video']]
+    image = data[feature_name_map['image']]
+    image = pad_tensor(image, 0)
+    video = pad_tensor(video, 0)
+
+    sentences = [tokenizer.encode(t) for t in sentences]
+    sentences = [torch.Tensor(t) for t in sentences]
+    sentences, lengths = pad(sentences, tokenizer.pad_id)
+    targets = [tokenizer.encode(t) for t in targets]
+    targets = [torch.Tensor(t) for t in targets]
+    targets, _ = pad(targets, tokenizer.pad_id)
+
+    return {'sentences': sentences,
+            'lengths': lengths,
+            'targets': targets,
+            'image': image,
+            'video': video,
+            'vid': data['vid']}
+
+
 def pad(x, pad_id=0):
     B = len(x)
     max_size, dtype = get_max_size(x)

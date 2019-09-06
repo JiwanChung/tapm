@@ -16,10 +16,11 @@ def evaluate(args, model, loss_fn, optimizer, tokenizer, dataloaders,
     eval_dict = {
         'mask_model': evaluate_mask,
         'subset_mask_model': evaluate_mask,
-        'autoencoder': evaluate_base,
-        'variational_masking': evaluate_base,
-        'deterministic_masking': evaluate_base,
-        'lstm_keyword_lm': evaluate_base
+        'autoencoder': evaluate_sample,
+        'variational_masking': evaluate_sample,
+        'deterministic_masking': evaluate_sample,
+        'lstm_keyword_lm': evaluate_sample,
+        'task2_baseline': evaluate_base,
     }
     if args.model.lower() in eval_dict:
         func = eval_dict[args.model.lower()]
@@ -30,6 +31,75 @@ def evaluate(args, model, loss_fn, optimizer, tokenizer, dataloaders,
 
 
 def evaluate_base(args, model, loss_fn, tokenizer, dataloaders,
+                  logger, print_output=False, epoch=-1, subset=None):
+    epoch_stats = defaultdict(float)
+    model.eval()
+    n_step = 0
+    dataloader = dataloaders['val']
+    metric = Metric(args)
+    text_logging_step = 0
+    texts = {}
+    total_length = len(dataloader)
+    if subset is not None:
+        subset = (len(dataloader) * subset) // args.batch_sizes['val']
+        subset = max(1, subset)
+        total_length = subset
+    with torch.no_grad():
+        for batch in tqdm(dataloader, total=subset):
+            batch = move_device(batch,
+                                to=args.device)
+            B = batch['sentences'].shape[0] if torch.is_tensor(batch['sentences']) else len(batch['sentences'])
+            targets = batch['targets']
+            logits, targets, reg_loss, added_stats, words = model(batch,
+                                                                     batch_per_epoch=args.batch_per_epoch['train'])
+            if logits is not None:
+                loss, stats = loss_fn(logits, targets)
+                stats = {'nll_loss': loss.item(), **stats}
+                if reg_loss is not None:
+                    final_loss = loss + reg_loss.sum() * args.reg_coeff
+                    stats = {**stats, **{
+                        'reg_loss': reg_loss.mean().item(),
+                        'final_loss': final_loss.item()
+                    }}
+                else:
+                    final_loss = loss
+            else:
+                final_loss = reg_loss
+                stats = {
+                    'reg_loss': reg_loss.mean().item(),
+                    'final_loss': final_loss.item()
+                }
+
+            if added_stats is not None:
+                stats = {**stats, **added_stats}
+
+            n_step += 1
+
+            for k, v in stats.items():
+                epoch_stats[k] = epoch_stats[k] + B * v
+            epoch_stats['num'] = epoch_stats['num'] + B
+
+            # log text for batch 1 ~ 5
+            if n_step <= 5:
+                targets = batch['targets']
+                for i in range(targets.shape[0]):
+                    word = decode_tensor(tokenizer, words[i], remove_past_sep=True)
+                    target = decode_tensor(tokenizer, targets[i], remove_past_sep=True)
+                    string = f"word: {word}"
+                    string += "\n---"
+                    string += f"\ntarget: \n{target}"
+                    logger(f"eval/keyword/epoch{epoch}", string, text_logging_step)
+                    text_logging_step += 1
+
+            if subset is not None and n_step > subset:
+                break
+
+    num = epoch_stats.pop('num')
+    epoch_stats = {k: v / num for k, v in epoch_stats.items()}
+
+    return epoch_stats, words, texts
+
+def evaluate_sample(args, model, loss_fn, tokenizer, dataloaders,
                   logger, print_output=False, epoch=-1, subset=None):
     epoch_stats = defaultdict(float)
     model.eval()

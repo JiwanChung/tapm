@@ -59,11 +59,16 @@ def get_gpt2():
         # 'type_b': '[TYPE_B]',
         # 'person': '[SOMEONE]'
     }
+    person_tokens = {f'person{i}': f'[PERSON{i}]' for i in range(20)}
+    person_tokens = {'blank': '[...]', **person_tokens}
+
     model_class, tokenizer, model_name = Models[model_name]
 
     tokenizer = tokenizer.from_pretrained(model_name, **default_special_tokens)
+    # tokenizer.add_tokens(person_tokens.values())
+    tokenizer.add_special_tokens(person_tokens)
     # unk is needed to add other special tokens
-    # tokenizer.add_special_tokens(special_tokens)
+
     for k, v in tokenizer.special_tokens_map.items():
         if k.endswith('_token'):
             setattr(tokenizer, f"{k[:-6]}_id",

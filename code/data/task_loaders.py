@@ -1,11 +1,14 @@
+import re
+import copy
 import json
 import sys
 from collections import defaultdict
+from itertools import chain
 
 from tqdm import tqdm
 import numpy as np
 
-from utils import cut_sample
+from utils import cut_sample, jsonl_to_json
 
 
 def load_tasks(args, path):
@@ -26,6 +29,47 @@ def load_task1(args, path):
         return load_keywords(args, path)
     else:
         return load_task1_text_only(args, path)
+
+
+def load_task2(args, path):
+    return load_task2_text(args, path)
+
+
+def load_task2_text(args, path):
+    blank = load_lsmdc_text(args, path.parent / f'{path.stem}_blank{path.suffix}')
+    all_feature = load_features(args, path, blank.keys())
+    blank = {k: {**v, **all_feature[k]} for k, v in blank.items()}
+    ids = load_lsmdc_text(args, path.parent / f'{path.stem}_onlyIDs{path.suffix}')
+    group_keys = make_groups(blank.keys())
+    data = {k: [(blank[i], ids[i]['target']) for i in v] for k, v in group_keys.items()}
+
+    def update_words(x):
+        ex, words = zip(*x)
+        words = [word.split(',') for word in words]
+        words = list(chain(*words))
+        words = [w for w in words if w != '_']
+        # make word map
+        # first come first served
+        word_map = []
+        for word in words:
+            if word not in word_map:
+                word_map.append(word)
+        word_map = {v: f'[PERSON{i}]' for i, v in enumerate(word_map)}
+
+        res = {}
+        res['target'] = '\n'.join(e['target'] for e in ex)
+        res['input'] = copy.deepcopy(res['target'])
+        for word in words:
+            span = list(re.finditer(r'\[\.\.\.\]', res['target']))[0].span()
+            res['target'] = res['target'][:span[0]] + word_map[word] + res['target'][span[1]:]
+        ex = jsonl_to_json(ex)
+        ex.update(res)
+
+        return ex
+
+    data = {k: update_words(v) for k, v in data.items()}
+
+    return data, {}
 
 
 def load_task1_group_with_features(args, path):
@@ -60,18 +104,24 @@ def make_groups(keys, chunk_size=5):
 
 
 def load_task1_with_features(args, path):
-    data = load_task1_text(args, path)
-    path = path.parent.glob(f"features/*")
+    data = load_lsmdc_text(args, path)
+    all_feature = load_features(args, path, data.keys())
+
+    return {k: {**v, **all_feature[k]} for k, v in data.items()}, {}
+
+
+def load_features(args, path, data_keys):
+    path = path.parent.parent.glob(f"features/*")
     path = [p for p in list(path) if p.name in args.feature_names or \
             (p.name in args.feature_name_map and args.feature_name_map[p.name] in args.feature_names)]
     features = {}
     for p in path:
         print(f"loading feature {p}")
-        features[p.name] = load_feature(p, data.keys())
+        features[p.name] = load_feature(p, data_keys)
     all_feature = {}
     for k in features[list(features.keys())[0]].keys():
         all_feature[k] = {p: v[k] for p, v in features.items()}
-    return {k: {**v, **all_feature[k]} for k, v in data.items()}, {}
+    return all_feature
 
 
 def load_feature(path, keys):
@@ -86,7 +136,7 @@ def load_feature(path, keys):
     return res
 
 
-def load_task1_text(args, path):
+def load_lsmdc_text(args, path):
     '''
     LSMDC task csv files lack header,
     and have their delimiter='\t', lineterminator='\n'
@@ -107,7 +157,7 @@ def load_task1_text(args, path):
 
 
 def load_task1_text_only(args, path):
-    data = load_task1_text(args, path)
+    data = load_lsmdc_text(args, path)
     data = {k: {'target': v['target']} for k, v in data.items()}
     return data, {}
 
