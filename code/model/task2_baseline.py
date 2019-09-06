@@ -42,8 +42,11 @@ class Task2Baseline(TransformerModel):
             blank_words = [x.squeeze(0) for x in blank_words.split(1, dim=0)]
             masks = [x.squeeze(0) for x in blank_ids.split(1, dim=0)]
             blank_words = [x.masked_select(masks[i]) for i, x in enumerate(blank_words)]
-            blank_words = [x.split(1) for x in blank_words]
-            blank_words = pad_tensor(blank_words, val=self.tokenizer.pad_id).squeeze(-1)
+            max_size = max([x.shape[0] for x in blank_words])
+            storage = torch.full((len(blank_words), max_size), self.tokenizer.pad_id).to(blank_ids.device)
+            for i, t in enumerate(blank_words):
+                storage[i, :t.shape[0]] = t
+            blank_words = storage
 
         return None, batch.targets, reg_loss, stats, blank_words
 

@@ -60,7 +60,10 @@ def load_task2_text(args, path):
         res['target'] = '\n'.join(e['target'] for e in ex)
         res['input'] = copy.deepcopy(res['target'])
         for word in words:
-            span = list(re.finditer(r'\[\.\.\.\]', res['target']))[0].span()
+            span = list(re.finditer(r'\[\.\.\.\]', res['target']))
+            if len(span) == 0:
+                break
+            span = span[0].span()
             res['target'] = res['target'][:span[0]] + word_map[word] + res['target'][span[1]:]
         ex = jsonl_to_json(ex)
         ex.update(res)
