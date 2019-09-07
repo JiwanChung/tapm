@@ -59,7 +59,8 @@ def train(args, model, loss_fn, optimizer, tokenizer, dataloaders, logger):
             n_step += 1
 
             for k, v in stats.items():
-                epoch_stats[k] = epoch_stats[k] + B * v
+                if v is not None:
+                    epoch_stats[k] = epoch_stats[k] + B * v
             epoch_stats['num'] = epoch_stats['num'] + B
 
             # log lr
@@ -74,9 +75,8 @@ def train(args, model, loss_fn, optimizer, tokenizer, dataloaders, logger):
                         keywords, scores = keywords
                     for i in range(B):
                         keyword = decode_tensor(tokenizer, keywords[i], remove_past_sep=True)
-                        score = '/'.join(["%.2f" % j for j in scores[i].detach().cpu().numpy()])
                         target = decode_tensor(tokenizer, batch['targets'][i], remove_past_sep=True)
-                        string = f"keywords:{[f'({i}/{j})' for i, j in zip(keyword.split(), score.split('/'))]}\ntarget: {target}"
+                        string = f"keyword:{keyword}\ntarget:{target}"
                         logger(f"train/keyword/epoch{epoch}", string, (n_step - 1) * B + i)
 
         num = epoch_stats.pop('num')

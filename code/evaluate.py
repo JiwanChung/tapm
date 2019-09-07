@@ -76,16 +76,21 @@ def evaluate_base(args, model, loss_fn, tokenizer, dataloaders,
             n_step += 1
 
             for k, v in stats.items():
-                epoch_stats[k] = epoch_stats[k] + B * v
+                if v is not None:
+                    epoch_stats[k] = epoch_stats[k] + B * v
             epoch_stats['num'] = epoch_stats['num'] + B
 
             # log text for batch 1 ~ 5
             if n_step <= 5:
                 targets = batch['targets']
                 for i in range(targets.shape[0]):
-                    word = decode_tensor(tokenizer, words[i], remove_past_sep=True)
+                    word = words[i]
+                    if torch.is_tensor(word):
+                        word = decode_tensor(tokenizer, word, remove_past_sep=True)
                     target = decode_tensor(tokenizer, targets[i], remove_past_sep=True)
-                    string = f"word: {word}"
+                    string = ''
+                    if word is not None:
+                        string += f"word: {word}"
                     string += "\n---"
                     string += f"\ntarget: \n{target}"
                     logger(f"eval/keyword/epoch{epoch}", string, text_logging_step)
