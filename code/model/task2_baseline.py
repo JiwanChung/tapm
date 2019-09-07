@@ -60,6 +60,13 @@ class Task2Baseline(TransformerModel):
             res.append(tgt.unsqueeze(0) == tgt.unsqueeze(-1))
         return res
 
+    def get_relation(self, hypo, tgt):
+        hypo = [str(h) for h in hypo]
+        hypo = [f"\n{h[8:h.find('], device')]}" for h in hypo]
+        tgt = [str(h) for h in tgt]
+        tgt = [f"\n{h[8:h.find('], device')]}" for h in tgt]
+        return [f"{h}\n---\n{t}" for h, t in zip(hypo, tgt)]
+
     def forward(self, batch, **kwargs):
         sentences = batch.sentences
 
@@ -73,7 +80,6 @@ class Task2Baseline(TransformerModel):
                  'blank_num': blank_ids.float().sum(dim=-1).mean().item()}
 
         with torch.no_grad():
-
             logit_argmax = logits.detach().argmax(dim=-1)
             blank_correct = (logit_argmax == batch.targets).masked_select(blank_ids)
             blank_words = [x.squeeze(0) for x in logit_argmax.split(1, dim=0)]
@@ -90,9 +96,10 @@ class Task2Baseline(TransformerModel):
             hypo = self.get_blanks(logit_argmax, blank_ids)
             hypo = self.cartesian(hypo)
             acc = self.get_acc(hypo, target)
+            relation = self.get_relation(hypo, target)
             stats = {'blank_acc': acc.float().mean().item(), **stats}
 
-        return None, batch.targets, reg_loss, stats, blank_words
+        return None, batch.targets, reg_loss, stats, relation
 
     def get_loss(self, hypo, tgt, mask):
         hypo = hypo.contiguous()
@@ -125,18 +132,6 @@ class Task2Baseline2(Task2Baseline):
             res.append(loss)
         return mean(res)
 
-    def get_acc(self, hypos, tgts):
-        res = []
-        for hypo, tgt in zip(hypos, tgts):
-            if tgt.shape[0] > 1:  # 1x1 would be trivial
-                hypo = torch.triu(hypo, diagonal=1)
-                tgt = torch.triu(tgt, diagonal=1)
-                acc = (hypo >= 0.5) == tgt
-                mask = torch.triu(torch.ones_like(tgt).byte(), diagonal=1).float()
-                acc = (acc.float() * mask).sum() / mask.sum()
-                res.append(acc)
-        return mean(res) if len(res) > 0 else None
-
     def relation_net(self, hypos):
         res = []
         for hypo in hypos:
@@ -162,9 +157,10 @@ class Task2Baseline2(Task2Baseline):
 
         reg_loss = self.get_loss(hypo, target)
         with torch.no_grad():
+            hypo = [h >= 0.5 for h in hypo]
             acc = self.get_acc(hypo, target)
-            relation = [str(h >= 0.5) for h in hypo]
-            relation = [f"\n{h[8:h.find(', device')]}" for h in relation]
+            relation = self.get_relation(hypo, target)
+
             stats = {'blank_loss': reg_loss.item(),
                     'blank_num': blank_ids.float().sum(dim=-1).mean().item(),
                     'blank_acc': acc.float().mean().item()}
