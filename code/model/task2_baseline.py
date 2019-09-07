@@ -28,6 +28,38 @@ class Task2Baseline(TransformerModel):
         self.net.train()
         self.gpt_dim = self.net.transformer.config.n_embd
 
+    def get_blanks(self, t, mask):
+        # BL(C), BL
+        res = []
+        for b in range(t.shape[0]):
+            # L(C), L
+            m = mask[b]
+            m = m.view(m.shape[0], *[1 for i in range(t.dim() - 2)]).contiguous()
+            x = t[b].masked_select(m)
+            if t.dim() > 2:
+                x = x.view(-1, t.shape[-1]).contiguous()
+            res.append(x)
+        # list of length B: N(C)
+        return res
+
+    def get_acc(self, hypos, tgts):
+        res = []
+        for hypo, tgt in zip(hypos, tgts):
+            if tgt.shape[0] > 1:  # 1x1 would be trivial
+                hypo = torch.triu(hypo, diagonal=1)
+                tgt = torch.triu(tgt, diagonal=1)
+                acc = hypo == tgt
+                mask = torch.triu(torch.ones_like(tgt).byte(), diagonal=1).float()
+                acc = (acc.float() * mask).sum() / mask.sum()
+                res.append(acc)
+        return mean(res) if len(res) > 0 else None
+
+    def cartesian(self, tgts):
+        res = []
+        for tgt in tgts:
+            res.append(tgt.unsqueeze(0) == tgt.unsqueeze(-1))
+        return res
+
     def forward(self, batch, **kwargs):
         sentences = batch.sentences
 
@@ -41,10 +73,10 @@ class Task2Baseline(TransformerModel):
                  'blank_num': blank_ids.float().sum(dim=-1).mean().item()}
 
         with torch.no_grad():
-            blank_words = logits.detach().argmax(dim=-1)
-            blank_correct = (blank_words == batch.targets).masked_select(blank_ids)
-            stats = {'blank_acc': blank_correct.float().mean().item(), **stats}
-            blank_words = [x.squeeze(0) for x in blank_words.split(1, dim=0)]
+
+            logit_argmax = logits.detach().argmax(dim=-1)
+            blank_correct = (logit_argmax == batch.targets).masked_select(blank_ids)
+            blank_words = [x.squeeze(0) for x in logit_argmax.split(1, dim=0)]
             masks = [x.squeeze(0) for x in blank_ids.split(1, dim=0)]
             blank_words = [x.masked_select(masks[i]) for i, x in enumerate(blank_words)]
             max_size = max([x.shape[0] for x in blank_words])
@@ -52,6 +84,13 @@ class Task2Baseline(TransformerModel):
             for i, t in enumerate(blank_words):
                 storage[i, :t.shape[0]] = t
             blank_words = storage
+
+            target = self.get_blanks(batch.targets, blank_ids)
+            target = self.cartesian(target)
+            hypo = self.get_blanks(logit_argmax, blank_ids)
+            hypo = self.cartesian(hypo)
+            acc = self.get_acc(hypo, target)
+            stats = {'blank_acc': acc.float().mean().item(), **stats}
 
         return None, batch.targets, reg_loss, stats, blank_words
 
@@ -75,20 +114,6 @@ class Task2Baseline2(Task2Baseline):
         self.loss = nn.BCEWithLogitsLoss(reduction='none')
         self.reduce_dim = nn.Linear(self.gpt_dim, 128)
 
-    def get_blanks(self, t, mask):
-        # BL(C), BL
-        res = []
-        for b in range(t.shape[0]):
-            # L(C), L
-            m = mask[b]
-            m = m.view(m.shape[0], *[1 for i in range(t.dim() - 2)]).contiguous()
-            x = t[b].masked_select(m)
-            if t.dim() > 2:
-                x = x.view(-1, t.shape[-1]).contiguous()
-            res.append(x)
-        # list of length B: N(C)
-        return res
-
     def get_loss(self, hypos, tgts):
         res = []
         for hypo, tgt in zip(hypos, tgts):
@@ -111,12 +136,6 @@ class Task2Baseline2(Task2Baseline):
                 acc = (acc.float() * mask).sum() / mask.sum()
                 res.append(acc)
         return mean(res) if len(res) > 0 else None
-
-    def cartesian(self, tgts):
-        res = []
-        for tgt in tgts:
-            res.append(tgt.unsqueeze(0) == tgt.unsqueeze(-1))
-        return res
 
     def relation_net(self, hypos):
         res = []

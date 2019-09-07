@@ -68,6 +68,7 @@ def train(args, model, loss_fn, optimizer, tokenizer, dataloaders, logger):
 
             for name, val in stats.items():
                 logger(f"train/iters/{name}", val, n_step)
+            '''
             if args.log_text_every > 0 and \
                     ((n_step + 1) % args.log_text_every == 0):
                 if keywords is not None and model.use_keyword:
@@ -78,6 +79,7 @@ def train(args, model, loss_fn, optimizer, tokenizer, dataloaders, logger):
                         target = decode_tensor(tokenizer, batch['targets'][i], remove_past_sep=True)
                         string = f"keyword:{keyword}\ntarget:{target}"
                         logger(f"train/keyword/epoch{epoch}", string, (n_step - 1) * B + i)
+            '''
 
         num = epoch_stats.pop('num')
         epoch_stats = {k: v / num for k, v in epoch_stats.items()}
