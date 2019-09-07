@@ -40,8 +40,14 @@ def load_task2_text(args, path):
     all_feature = load_features(args, path, blank.keys())
     blank = {k: {**v, **all_feature[k]} for k, v in blank.items()}
     ids = load_lsmdc_text(args, path.parent / f'{path.stem}_onlyIDs{path.suffix}')
-    group_keys = make_groups(blank.keys())
-    data = {k: [(blank[i], ids[i]['target']) for i in v] for k, v in group_keys.items()}
+    data = {k: (blank[k], ids[k]['target']) for k in blank.keys()}
+
+    def check_if_word(v):
+        return '[...]' in v[0]['target'] and len(v[1].split(',')) > 0
+    data = {k: v for k, v in data.items() if check_if_word(v)}
+    group_keys = make_groups(data.keys())
+    data = {k: [data[i] for i in v] for k, v in group_keys.items()}
+    # skip no word sample
 
     def update_words(x):
         ex, words = zip(*x)
@@ -59,12 +65,15 @@ def load_task2_text(args, path):
         res = {}
         res['target'] = '\n'.join(e['target'] for e in ex)
         res['input'] = copy.deepcopy(res['target'])
+        counter = 0
         for word in words:
             span = list(re.finditer(r'\[\.\.\.\]', res['target']))
             if len(span) == 0:
                 break
             span = span[0].span()
             res['target'] = res['target'][:span[0]] + word_map[word] + res['target'][span[1]:]
+            counter += 1
+        assert counter > 0, print(f"no span for {res['target']} \n {words}")
         ex = jsonl_to_json(ex)
         ex.update(res)
 
