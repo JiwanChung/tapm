@@ -12,6 +12,7 @@ from config import config, debug_options, log_keys
 from utils import wait_for_key, add_keyword_paths
 from train import train
 from evaluate import evaluate
+from infer import infer
 from extract_keyword import extract_and_save_all
 from model import get_model
 from ckpt import get_model_ckpt
@@ -86,6 +87,15 @@ class Cli:
             for k, v in texts.items():
                 line = {k: {'hypo': v[0], 'target': v[1]}}
                 f.write(f'{line}\n')
+
+        # hold process to keep tensorboard alive
+        wait_for_key()
+
+    def infer(self, **kwargs):
+        all_args = self.prepare(**kwargs)
+        args = all_args[0]
+
+        texts = infer(*all_args, print_output=False)
 
         # hold process to keep tensorboard alive
         wait_for_key()

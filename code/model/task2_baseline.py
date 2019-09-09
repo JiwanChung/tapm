@@ -73,7 +73,7 @@ class Task2Baseline(TransformerModel):
         x = self.net.transformer(sentences)[0]
         logits = self.net.lm_head(x)
 
-        blank_ids = sentences != batch.targets
+        blank_ids = batch.blank_ids
         reg_loss = self.get_loss(logits, batch.targets, blank_ids)
 
         stats = {'blank_loss': reg_loss.item(),
@@ -119,7 +119,9 @@ class Task2Baseline2(Task2Baseline):
         super(Task2Baseline2, self).__init__(args, transformer, tokenizer)
 
         self.loss = nn.BCEWithLogitsLoss(reduction='none')
-        self.reduce_dim = nn.Linear(self.gpt_dim, 128)
+        small_dim = 128
+        self.reduce_dim = nn.Linear(self.gpt_dim, small_dim)
+        self.layer_norm = nn.LayerNorm(small_dim)
 
     def get_loss(self, hypos, tgts):
         res = []
@@ -138,8 +140,8 @@ class Task2Baseline2(Task2Baseline):
             # NC
             C = hypo.shape[-1]
             hypo = self.reduce_dim(hypo)
+            hypo = self.layer_norm(hypo)
             hypo = torch.einsum('nic,imc->nm', hypo.unsqueeze(1), hypo.unsqueeze(0))
-            hypo = hypo / math.sqrt(C)
             res.append(hypo)
         return res
 
@@ -149,7 +151,7 @@ class Task2Baseline2(Task2Baseline):
         x = self.net.transformer(sentences)[0]
 
         # build nxn relation matrix
-        blank_ids = sentences != batch.targets
+        blank_ids = batch.blank_ids
         target = self.get_blanks(batch.targets, blank_ids)
         target = self.cartesian(target)
         hypo = self.get_blanks(x, blank_ids)

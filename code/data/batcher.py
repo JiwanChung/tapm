@@ -305,9 +305,13 @@ def make_blank_filling_batch(tokenizer, data, feature_name_map={}, **kwargs):
     targets = [torch.Tensor(t) for t in targets]
     targets, _ = pad(targets, tokenizer.pad_id)
 
+    blank_ids = sentences == tokenizer.convert_tokens_to_ids(tokenizer.blank)
+
     return {'sentences': sentences,
             'lengths': lengths,
             'targets': targets,
+            'blank_ids': blank_ids,
+            'blank_num': data['blank_num'],
             'image': image,
             'video': video,
             'vid': data['vid']}

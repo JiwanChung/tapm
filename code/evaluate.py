@@ -104,6 +104,7 @@ def evaluate_base(args, model, loss_fn, tokenizer, dataloaders,
 
     return epoch_stats, words, texts
 
+
 def evaluate_sample(args, model, loss_fn, tokenizer, dataloaders,
                   logger, print_output=False, epoch=-1, subset=None):
     epoch_stats = defaultdict(float)

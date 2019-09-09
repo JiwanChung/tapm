@@ -39,41 +39,52 @@ def load_task2_text(args, path):
     blank = load_lsmdc_text(args, path.parent / f'{path.stem}_blank{path.suffix}')
     all_feature = load_features(args, path, blank.keys())
     blank = {k: {**v, **all_feature[k]} for k, v in blank.items()}
-    ids = load_lsmdc_text(args, path.parent / f'{path.stem}_onlyIDs{path.suffix}')
-    data = {k: (blank[k], ids[k]['target']) for k in blank.keys()}
-
-    def check_if_word(v):
-        return '[...]' in v[0]['target'] and len(v[1].split(',')) > 0
+    ids_path = path.parent / f'{path.stem}_onlyIDs{path.suffix}'
+    if ids_path.is_file():
+        ids = load_lsmdc_text(args, ids_path)
+        data = {k: (blank[k], ids[k]['target']) for k in blank.keys()}
+        def check_if_word(v):
+            return '[...]' in v[0]['target'] and len(v[1].split(',')) > 0
+    else:
+        data = {k: (blank[k], None) for k in blank.keys()}
+        def check_if_word(v):
+            return '[...]' in v[0]['target']
     data = {k: v for k, v in data.items() if check_if_word(v)}
+
     group_keys = make_groups(data.keys())
     data = {k: [data[i] for i in v] for k, v in group_keys.items()}
     # skip no word sample
 
     def update_words(x):
         ex, words = zip(*x)
-        words = [word.split(',') for word in words]
-        words = list(chain(*words))
-        words = [w for w in words if w != '_']
-        # make word map
-        # first come first served
-        word_map = []
-        for word in words:
-            if word not in word_map:
-                word_map.append(word)
-        word_map = {v: f'[PERSON{i}]' for i, v in enumerate(word_map)}
-
         res = {}
-        res['target'] = '\n'.join(e['target'] for e in ex)
+        res['target'] = [e['target'] for e in ex]
+        res['blank_num'] = np.array([len(list(re.finditer(r'\[\.\.\.\]', i))) for i in res['target']])
+        res['target'] = '\n'.join(res['target'])
         res['input'] = copy.deepcopy(res['target'])
-        counter = 0
-        for word in words:
-            span = list(re.finditer(r'\[\.\.\.\]', res['target']))
-            if len(span) == 0:
-                break
-            span = span[0].span()
-            res['target'] = res['target'][:span[0]] + word_map[word] + res['target'][span[1]:]
-            counter += 1
-        assert counter > 0, print(f"no span for {res['target']} \n {words}")
+
+        words = list(words)
+        if len(words) > 0 and words[0] is not None:
+            words = [word.split(',') for word in words]
+            words = list(chain(*words))
+            words = [w for w in words if w != '_']
+            # make word map
+            # first come first served
+            word_map = []
+            for word in words:
+                if word not in word_map:
+                    word_map.append(word)
+            word_map = {v: f'[PERSON{i}]' for i, v in enumerate(word_map)}
+
+            counter = 0
+            for word in words:
+                span = list(re.finditer(r'\[\.\.\.\]', res['target']))
+                if len(span) == 0:
+                    break
+                span = span[0].span()
+                res['target'] = res['target'][:span[0]] + word_map[word] + res['target'][span[1]:]
+                counter += 1
+            assert counter > 0, print(f"no span for {res['target']} \n {words}")
         ex = jsonl_to_json(ex)
         ex.update(res)
 
