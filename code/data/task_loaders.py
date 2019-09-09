@@ -45,11 +45,9 @@ def load_task2_text(args, path):
         data = {k: (blank[k], ids[k]['target']) for k in blank.keys()}
         def check_if_word(v):
             return '[...]' in v[0]['target'] and len(v[1].split(',')) > 0
+        data = {k: v for k, v in data.items() if check_if_word(v)}
     else:
         data = {k: (blank[k], None) for k in blank.keys()}
-        def check_if_word(v):
-            return '[...]' in v[0]['target']
-    data = {k: v for k, v in data.items() if check_if_word(v)}
 
     group_keys = make_groups(data.keys())
     data = {k: [data[i] for i in v] for k, v in group_keys.items()}

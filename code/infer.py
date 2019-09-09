@@ -37,35 +37,32 @@ def infer_task2(args, model, loss_fn, tokenizer, dataloaders,
         subset = max(1, subset)
         total_length = subset
 
-    def erase_name(vid):
-        vid_prefix = vid[:vid.find('_')]
-        vid = vid[vid.find('_') + 1:]
-        vid = vid[vid.find('.') + 1:]
-        return f"{vid_prefix}_{vid}"
-
     def postprocess_relation(relation, blank_num, vids):
         # back to matrix
         # model/task2_baseline:Task2Baseline2/get_relation
         vid = vids[0]
         vid_prefix = vid[:vid.find('_')]
-        relation = relation[:relation.find('---')].strip().split('\n')
-        relation = [i.strip() for i in relation]
-        relation = [i[1:i.find(']')] for i in relation]
-        relation = [[int(j.strip()) for j in i.split(',')] for i in relation]
-        relation = np.array(relation)
-        N = relation.shape[0]
-        people = [f'[{vid_prefix}_PERSON_{i}]' for i in range(N)]
-        for i in range(N):
-            for j in range(i + 1, N):
-                if relation[i, j] == 1:
-                    people[j] = people[i]
+        if relation is not None:
+            relation = relation[:relation.find('---')].strip().split('\n')
+            relation = [i.strip() for i in relation]
+            relation = [i[1:i.find(']')] for i in relation]
+            relation = [[int(j.strip()) for j in i.split(',')] for i in relation]
+            relation = np.array(relation)
+            N = relation.shape[0]
+            people = [f'[{vid_prefix}_PERSON_{i}]' for i in range(N)]
+            for i in range(N):
+                for j in range(i + 1, N):
+                    if relation[i, j] == 1:
+                        people[j] = people[i]
 
-        assert len(people) == blank_num.sum(), f'people num {len(people)} does not match blank num {blank_num.sum()}'
-        res = []
-        for length in list(blank_num):
-            res.append(people[:length])
-            people = people[:length]
-        res = {erase_name(vid): person for vid, person in zip(vids, res)}
+            assert len(people) == blank_num.sum(), f'people num {len(people)} does not match blank num {blank_num.sum()}'
+            res = []
+            for length in list(blank_num):
+                res.append(people[:length])
+                people = people[length:]
+            res = {vid: person for vid, person in zip(vids, res)}
+        else:
+            res = {vid: [] for vid in vids}
         res = sorted(res.items())
 
         return res
@@ -86,11 +83,13 @@ def infer_task2(args, model, loss_fn, tokenizer, dataloaders,
             relations = chain(*relations)
 
             total_relations = [*relations, *total_relations]
+    total_relations = sorted(total_relations)
 
     task2_out_path = args.data_path['train'].parent / 'test_results.csv'
     # save file
     with open(task2_out_path, 'w') as f:
         for line in total_relations:
-            f.write(f"{line[0]}\t{','.join(line[1])}\n")
+            person = ','.join(line[1]) if len(line[1]) > 0 else '_'
+            f.write(f"{line[0]}\t{person}\n")
 
     return total_relations

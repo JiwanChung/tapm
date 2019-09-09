@@ -60,9 +60,10 @@ def get_datasets(args, paths):
 def get_dataloaders(args, datasets, batch_func, tokenizer):
     dataloaders = {}
     for k, dataset in datasets.items():
+        shuffle = False if k == 'test' else True
         dataloader = DataLoader(dataset, name=k,
                                 batch_size=args.batch_sizes[k],
-                                shuffle=True, num_workers=args.num_workers,
+                                shuffle=shuffle, num_workers=args.num_workers,
                                 batch_func=batch_func,
                                 tokenizer=tokenizer, device=args.device,
                                 max_sentence_tokens=args.max_sentence_tokens,

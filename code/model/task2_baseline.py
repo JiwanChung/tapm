@@ -45,7 +45,7 @@ class Task2Baseline(TransformerModel):
     def get_acc(self, hypos, tgts):
         res = []
         for hypo, tgt in zip(hypos, tgts):
-            if tgt.shape[0] > 1:  # 1x1 would be trivial
+            if tgt.shape[0] > 1 and hypo is not None:  # 1x1 would be trivial
                 hypo = torch.triu(hypo, diagonal=1)
                 tgt = torch.triu(tgt, diagonal=1)
                 acc = hypo == tgt
@@ -61,11 +61,17 @@ class Task2Baseline(TransformerModel):
         return res
 
     def get_relation(self, hypo, tgt):
-        hypo = [str(h) for h in hypo]
-        hypo = [f"\n{h[8:h.find('], device')]}" for h in hypo]
-        tgt = [str(h) for h in tgt]
-        tgt = [f"\n{h[8:h.find('], device')]}" for h in tgt]
-        return [f"{h}\n---\n{t}" for h, t in zip(hypo, tgt)]
+        res = []
+        for h, t in zip(hypo, tgt):
+            if h is not None:
+                h = str(h)
+                t = str(t)
+                h = f"\n{h[8:h.find('], device')]}"
+                t = f"\n{t[8:t.find('], device')]}"
+                res.append(f"{h}\n---\n{t}")
+            else:
+                res.append(None)
+        return res
 
     def forward(self, batch, **kwargs):
         sentences = batch.sentences
@@ -126,23 +132,26 @@ class Task2Baseline2(Task2Baseline):
     def get_loss(self, hypos, tgts):
         res = []
         for hypo, tgt in zip(hypos, tgts):
-            hypo = torch.triu(hypo, diagonal=1)
-            tgt = torch.triu(tgt, diagonal=1)
-            loss = self.loss(hypo, tgt.float())
-            mask = torch.triu(torch.ones_like(tgt).byte(), diagonal=1).byte()
-            loss = loss.masked_select(mask).sum()
-            res.append(loss)
+            if hypo is not None:
+                hypo = torch.triu(hypo, diagonal=1)
+                tgt = torch.triu(tgt, diagonal=1)
+                loss = self.loss(hypo, tgt.float())
+                mask = torch.triu(torch.ones_like(tgt).byte(), diagonal=1).byte()
+                loss = loss.masked_select(mask).sum()
+                res.append(loss)
         return mean(res)
 
     def relation_net(self, hypos):
         res = []
         for hypo in hypos:
             # NC
-            C = hypo.shape[-1]
-            hypo = self.reduce_dim(hypo)
-            hypo = self.layer_norm(hypo)
-            hypo = torch.einsum('nic,imc->nm', hypo.unsqueeze(1), hypo.unsqueeze(0))
-            res.append(hypo)
+            if hypo.nelement() != 0:
+                hypo = self.reduce_dim(hypo)
+                hypo = self.layer_norm(hypo)
+                hypo = torch.einsum('nic,imc->nm', hypo.unsqueeze(1), hypo.unsqueeze(0))
+                res.append(hypo)
+            else:
+                res.append(None)
         return res
 
     def forward(self, batch, **kwargs):
@@ -159,7 +168,7 @@ class Task2Baseline2(Task2Baseline):
 
         reg_loss = self.get_loss(hypo, target)
         with torch.no_grad():
-            hypo = [h >= 0.5 for h in hypo]
+            hypo = [torch.sigmoid(h) >= 0.5 if h is not None else None for h in hypo]
             acc = self.get_acc(hypo, target)
             relation = self.get_relation(hypo, target)
 
