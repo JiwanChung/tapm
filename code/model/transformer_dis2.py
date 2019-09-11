@@ -191,7 +191,7 @@ class TransformerDisSmallVocab(TransformerDisPtrGen):
 
         self.k = args.get('keyword_top_k', 20)
         self.eval_random = True
-        self.small_logit_only = True
+        self.small_logit_only = False
 
     def get_keyword(self, batch, features):
         return self.keyword_classifier(batch.word_subsets, features)

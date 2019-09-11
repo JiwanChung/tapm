@@ -36,7 +36,7 @@ def extract_keyword(args, model, tokenizer, dataloader):
                 keywords = decode_tensor(tokenizer, keywords, split_tokens=True)
                 target = decode_tensor(tokenizer, targets[i])
                 ratios.append(keywords_len / target_len)
-                res[data_ids[i]] = {'keyword': keywords, 'score': score}
+                res[data_ids[int(i/5)]] = {'keyword': keywords, 'score': score}
 
     ratios = np.array(ratios)
     model.train()

@@ -28,7 +28,7 @@ def main():
 
 def get_file_name(full_name):
     n = full_name.split('_')
-    model_name_idx = [i for i, w in enumerate(n) if i == 'model'][0]
+    model_name_idx = [i for i, w in enumerate(n) if w == 'model'][0]
     return n[model_name_idx + 1]
 
 
