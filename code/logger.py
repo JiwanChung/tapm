@@ -12,6 +12,7 @@ from utils import get_dirname_from_args, get_now
 class Logger:
     def __init__(self, args):
         self.log_cmd = args.log_cmd
+        self.log_multi = args.log_multi
         log_name = get_dirname_from_args(args)
         log_name += f'_{get_now()}'
         self.log_path = args.log_path / log_name
@@ -19,7 +20,7 @@ class Logger:
         self.tfboard = SummaryWriter(self.log_path)
 
         print(f"Logging at {self.log_path}")
-        self.url = run_tensorboard(self.log_path)
+        self.url = run_tensorboard(self.log_path if not self.log_multi else args.log_path)
         url = self.url.split(':')
         args.hostname = args.get('hostname', 'localhost')
         url = f"{':'.join(url[:-1])}.{args.hostname}:{url[-1]}"

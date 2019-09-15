@@ -53,7 +53,7 @@ def jsonl_to_json(x):
         if isinstance(t[0], dict):
             return [i[key] for i in t]
         else:
-            return [merge_key(i, key) for i in t]
+            return [k for i in t for k in merge_key(i, key)]
     res = {}
     for key in keys:
         res[key] = merge_key(x, key)

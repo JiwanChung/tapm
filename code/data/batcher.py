@@ -261,8 +261,10 @@ def make_feature_lm_batch_with_keywords(tokenizer, data, keywords=None, word_cou
     feature_name_map = {v: k for k, v in feature_name_map.items()}
     video = data[feature_name_map['video']]
     image = data[feature_name_map['image']]
+    flow = data[feature_name_map['flow']]
     image = pad_tensor(image, 0)
     video = pad_tensor(video, 0)
+    flow = pad_tensor(flow, 0)
     if keywords is not None:
         keyword_masks = pad_tensor(keyword_masks, 0)
     else:
@@ -279,6 +281,7 @@ def make_feature_lm_batch_with_keywords(tokenizer, data, keywords=None, word_cou
             'targets': targets,
             'image': image,
             'video': video,
+            'flow': flow,
             'vid': data['vid'],
             'keyword_masks': keyword_masks,
             'keyword_map': keywords,
@@ -295,8 +298,10 @@ def make_blank_filling_batch(tokenizer, data, feature_name_map={}, **kwargs):
     feature_name_map = {v: k for k, v in feature_name_map.items()}
     video = data[feature_name_map['video']]
     image = data[feature_name_map['image']]
+    flow = data[feature_name_map['flow']]
     image = pad_tensor(image, 0)
     video = pad_tensor(video, 0)
+    flow = pad_tensor(flow, 0)
 
     sentences = [tokenizer.encode(t) for t in sentences]
     sentences = [torch.Tensor(t) for t in sentences]
@@ -314,6 +319,7 @@ def make_blank_filling_batch(tokenizer, data, feature_name_map={}, **kwargs):
             'blank_num': data['blank_num'],
             'image': image,
             'video': video,
+            'flow': flow,
             'vid': data['vid']}
 
 
