@@ -18,7 +18,7 @@ python get_rake_keywords.py --n=K
 
 ```bash
 python cli.py extract --ckpt_name=CKPT_NAME
-python postprocess_keyword.py --n=K --path=KEYWORD_DIR
+python postprocess_keyword.py --n=K --path=KEYWORD_DIR -f=full
 ```
 
 The above commands will produce respective keyword files in `DATA_DIR/keywords` folder.

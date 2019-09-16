@@ -13,7 +13,7 @@ from .transformer_model import TransformerModel
 
 class KeywordClassifier(nn.Module):
     def __init__(self, wte, keyword_num, dim, feature_names,
-                 video_dim, image_dim, flow_dim, gamma=2, dropout=0,
+                 video_dim, image_dim, flow_dim, box_dim, gamma=2, dropout=0,
                  recall_k=20, loss_type='bce'):
         super(KeywordClassifier, self).__init__()
 
@@ -26,6 +26,7 @@ class KeywordClassifier(nn.Module):
         self.video_dim = video_dim
         self.image_dim = image_dim
         self.flow_dim = flow_dim
+        self.box_dim = box_dim
         self.recall_weight = 100
 
         # self.wte = copy.deepcopy(wte)
@@ -104,6 +105,7 @@ class KeywordClassifierWrapper(TransformerModel):
         self.video_dim = args.get('video_dim', 1024)
         self.image_dim = args.get('image_dim', 2048)
         self.flow_dim = args.get('flow_dim', 1024)
+        self.box_dim = args.get('box_dim', 1600)
         self.keyword_num = args.get('keyword_num', 1000)
         self.dropout_ratio = args.get('dropout', 0.5)
         self.feature_names = args.get('feature_names',
@@ -114,7 +116,8 @@ class KeywordClassifierWrapper(TransformerModel):
         self.net = KeywordClassifier(
             transformer.transformer.wte,
             self.keyword_num, self.gpt_dim, self.feature_names,
-            self.video_dim, self.image_dim, self.flow_dim, self.dropout_ratio,
+            self.video_dim, self.image_dim, self.flow_dim, self.box_dim,
+            self.dropout_ratio,
             loss_type=self.keyword_loss_type
         )
 
@@ -142,10 +145,11 @@ class WordSubsetClassifier(TransformerModel):
         self.video_dim = args.get('video_dim', 1024)
         self.image_dim = args.get('image_dim', 2048)
         self.flow_dim = args.get('flow_dim', 1024)
+        self.box_dim = args.get('box_dim', 1600)
         self.keyword_num = args.get('keyword_num', 1000)
         self.dropout_ratio = args.get('dropout', 0.5)
         self.feature_names = args.get('feature_names',
-                                      ['video', 'image'])
+                                      ['video', 'image', 'flow', 'box'])
         self.k = args.get('keyword_top_k', 20)
         self.keyword_loss_type = args.get('keyword_classification_loss', 'bce')
 
@@ -153,7 +157,8 @@ class WordSubsetClassifier(TransformerModel):
         self.net = KeywordClassifier(
             transformer.transformer.wte,
             len(tokenizer), self.gpt_dim, self.feature_names,
-            self.video_dim, self.image_dim, self.flow_dim, self.dropout_ratio,
+            self.video_dim, self.image_dim, self.flow_dim, self.box_dim,
+            self.dropout_ratio,
             recall_k=self.k,
             loss_type=self.keyword_loss_type
         )

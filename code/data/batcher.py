@@ -67,6 +67,8 @@ def make_keyword_batch(tokenizer, data, concat=False, keywords=None, lemmatize=N
 def make_mask_model_batch(tokenizer, data, random_idx=True, complementary=False, **kwargs):
     data = jsonl_to_json(data)
     sentences = data['target']
+    if type(sentences) == 'list':
+        sentences = [x for r in sentences for x in r]
     sentences = [tokenizer.encode(t) for t in sentences]
     max_limit = kwargs.get('max_sentence_tokens', None)
     if max_limit is not None:
@@ -262,9 +264,11 @@ def make_feature_lm_batch_with_keywords(tokenizer, data, keywords=None, word_cou
     video = data[feature_name_map['video']]
     image = data[feature_name_map['image']]
     flow = data[feature_name_map['flow']]
+    box = data[feature_name_map['box']]
     image = pad_tensor(image, 0)
     video = pad_tensor(video, 0)
     flow = pad_tensor(flow, 0)
+    box = pad_tensor(box, 0)
     if keywords is not None:
         keyword_masks = pad_tensor(keyword_masks, 0)
     else:
@@ -282,6 +286,7 @@ def make_feature_lm_batch_with_keywords(tokenizer, data, keywords=None, word_cou
             'image': image,
             'video': video,
             'flow': flow,
+            'box': box,
             'vid': data['vid'],
             'keyword_masks': keyword_masks,
             'keyword_map': keywords,

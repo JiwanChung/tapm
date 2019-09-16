@@ -33,11 +33,11 @@ class HybridDis(TransformerModel):
         self.video_dim = args.get('video_dim', 1024)
         self.image_dim = args.get('image_dim', 2048)
         self.flow_dim = args.get('flow_dim', 1024)
+        self.object_dim = args.get('box_dim', 1600)
         self.keyword_num = args.get('keyword_num', 1000)
         self.dropout_ratio = args.get('dropout', 0.5)
         self.feature_names = args.get('feature_names',
-                                      ['video', 'image', 'flow'])
-                                      # ['video', 'image', 'flow', 'box'])
+                                      ['video', 'image', 'flow', 'box'])
         self.share_in_out = args.get('share_in_out',
                                      False)
         self.use_gt_keywords = args.get('use_gt_keywords', False)
@@ -59,7 +59,8 @@ class HybridDis(TransformerModel):
         self.keyword_classifier = KeywordClassifier(
             self.wte,
             self.keyword_num, self.dim, self.feature_names,
-            self.video_dim, self.image_dim, self.flow_dim, self.dropout_ratio,
+            self.video_dim, self.image_dim, self.flow_dim, self.box_dim,
+            self.dropout_ratio,
             recall_k=self.k,
             loss_type=self.keyword_loss_type
         )
