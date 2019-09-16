@@ -27,7 +27,6 @@ class HybridDis(TransformerModel):
 
     def __init__(self, args, transformer, tokenizer):
         super(HybridDis, self).__init__()
-        import pdb; pdb.set_trace()
         self.eps = 1e-09
 
         self.dim = args.get('dim', 512)
@@ -201,6 +200,7 @@ class HybridDis(TransformerModel):
             self.keyword_map = self.get_keyword_map(batch.keyword_map)
         if (not hasattr(self, 'keyword_freq')) and hasattr(batch, 'word_counter'):
             self.keyword_freq = self.get_keyword_freq(batch, video.device)
+        import ipdb; ipdb.set_trace()  # XXX DEBUG
 
         features = {k: val for k, val \
                     in {f: getattr(batch, f) for f \
