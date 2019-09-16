@@ -43,7 +43,7 @@ config = {
     'val_path': 'data/LSMDC/task1/LSMDC16_annos_val_someone.csv',
     'test_path': None,
     #'keyword_dir': 'keywords_top1000',
-    'keyword_name': None,
+    'keyword_name': 'keywords_gpt_top_1000.json',
     'num_workers': 32,
 
     'sample': False,

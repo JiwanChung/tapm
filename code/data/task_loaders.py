@@ -140,11 +140,11 @@ def load_features(args, path, data_keys):
     reverse_map = {v: k for k, v in args.feature_name_map.items()}
     feature_names = [reverse_map[x] if x in reverse_map else x for x in feature_names]
     for p in path:
-        if p.stem in feature_names and p is not 'rcnn':
+        if p.stem in feature_names and p is not 'box':
             print(f"loading feature {p}")
             features[p.name] = load_feature(p, data_keys)
-        elif p.stem in feature_names and p is 'rcnn':
-            features[p.name] = load_feature_rcnn(p, data_keys)
+        elif p.stem in feature_names and p is 'box':
+            features[p.name] = load_feature_box(p, data_keys)
     all_feature = {}
     for k in features[list(features.keys())[0]].keys():
         all_feature[k] = {p: v[k] for p, v in features.items()}
@@ -163,7 +163,7 @@ def load_feature(path, keys):
     return res
 
 
-def load_feature_rcnn(path, keys):
+def load_feature_box(path, keys):
     path = path.glob('*')
     path = {p.name: {p2.stem: p2 for p2 in p.glob('*')} for p in path}
     res = {}
@@ -171,12 +171,12 @@ def load_feature_rcnn(path, keys):
         f1_name = '_'.join(k.split('_')[:-1])
         f2_name = k
         p = path[f1_name][f2_name]
-        feat = map(rcnn_preprocess, np.load(p))
+        feat = map(box_preprocess, np.load(p))
         res[k] = mean_pool_segments(np.load(p))
     return res
 
 
-def rcnn_preprocess(feat):
+def box_preprocess(feat):
     # T=1, Object(20), Info(6 - prob, idx, bbox)
     ret = np.zeros(1600)
     for i in feat.shape[0]:
