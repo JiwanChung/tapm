@@ -20,6 +20,10 @@ def evaluate(args, model, loss_fn, optimizer, tokenizer, dataloaders,
         'variational_masking': evaluate_sample,
         'deterministic_masking': evaluate_sample,
         'lstm_keyword_lm': evaluate_sample,
+        'hybrid_dis': evaluate_sample,
+        'transformer_dis': evaluate_sample,
+        'transformer_dis_ptr_gen': evaluate_sample,
+        'transformer_dis_ptr_gen2': evaluate_sample,
         'task2_baseline': evaluate_base,
     }
     if args.model.lower() in eval_dict:
@@ -84,14 +88,14 @@ def evaluate_base(args, model, loss_fn, tokenizer, dataloaders,
             if n_step <= 5:
                 targets = batch['targets']
                 for i in range(targets.shape[0]):
-                    word = words[i]
-                    if torch.is_tensor(word):
-                        word = decode_tensor(tokenizer, word, remove_past_sep=True)
-                    target = decode_tensor(tokenizer, targets[i], remove_past_sep=True)
                     string = ''
-                    if word is not None:
+                    if words is not None:
+                        word = words[i]
+                        if torch.is_tensor(word):
+                            word = decode_tensor(tokenizer, word, remove_past_sep=True)
                         string += f"word: {word}"
                     string += "\n---"
+                    target = decode_tensor(tokenizer, targets[i], remove_past_sep=True)
                     string += f"\ntarget: \n{target}"
                     logger(f"eval/keyword/epoch{epoch}", string, text_logging_step)
                     text_logging_step += 1
