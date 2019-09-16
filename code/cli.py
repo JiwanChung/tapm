@@ -69,6 +69,8 @@ class Cli:
 
     def train(self, **kwargs):
         all_args = self.prepare(**kwargs)
+        args = all_args[0]
+        print(args)
 
         train(*all_args)
 

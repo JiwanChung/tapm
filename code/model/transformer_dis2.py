@@ -1,3 +1,5 @@
+from collections import OrderedDict
+
 import torch
 from torch import nn
 import torch.nn.functional as F
@@ -8,8 +10,10 @@ from loss import SmoothLoss
 
 from .transformer_dis import TransformerDis
 from .modules import MLP
+from .collaborative_experts import CollaborativeExpertsWrapper
 
 
+'''
 class TransformerDis2(TransformerDis):
     def __init__(self, args, transformer, tokenizer):
         super(TransformerDis2, self).__init__(args, transformer, tokenizer)
@@ -31,8 +35,38 @@ class TransformerDis2(TransformerDis):
 
     def smooth(self, probs):
         return probs + self.eps
+'''
 
 
+class TransformerDisCE(TransformerDis):
+    def __init__(self, args, transformer, tokenizer):
+        super(TransformerDisCE, self).__init__(args, transformer, tokenizer)
+
+        self.ce = CollaborativeExpertsWrapper(
+            self.feature_names,
+            self.video_dim,
+            self.image_dim,
+            self.flow_dim,
+            self.gpt_dim
+        )
+
+    def run_transformer_get_loss(self, hypo, features, keyword, group_mask=None, gt=None):
+        features = OrderedDict(sorted(features.items()))  # canonical ordering
+        res = OrderedDict()
+        for feature in self.feature_names:
+            res[feature] = getattr(self, feature)(features[feature], None)
+        o = self.run_transformer(hypo, res, keyword)
+
+        rank_loss, stats = self.ce(o, features, group_mask)
+
+        o = self.dropout(o)
+        c = o.mean(dim=1)
+        c = self.reduce_c(c)
+        logits, _, _ = self.get_logits(o, keyword, gt)
+        return logits, c, rank_loss, stats
+
+
+'''
 class TransformerDis3(TransformerDis2):
     def __init__(self, args, transformer, tokenizer):
         super(TransformerDis3, self).__init__(args, transformer, tokenizer)
@@ -46,9 +80,10 @@ class TransformerDis3(TransformerDis2):
         keyword = self.smooth(keyword)
         o = self.net.lm_head(o)
         return o * keyword.unsqueeze(1).expand(-1, o.shape[1], -1), None, {}
+'''
 
 
-class TransformerDisMoe(TransformerDis2):
+class TransformerDisMoe(TransformerDis):
     def __init__(self, args, transformer, tokenizer):
         super(TransformerDisMoe, self).__init__(args, transformer, tokenizer)
 
@@ -84,7 +119,7 @@ class TransformerDisMoe(TransformerDis2):
         return o, None, {}
 
 
-class TransformerDisPtrGen(TransformerDis2):
+class TransformerDisPtrGen(TransformerDis):
     def __init__(self, args, transformer, tokenizer):
         super(TransformerDisPtrGen, self).__init__(args, transformer, tokenizer)
 
@@ -167,6 +202,8 @@ class TransformerDisPtrGen(TransformerDis2):
         logits = self.drop_connect(beta, big_logit, small_logit)
         return logits, loss, stats
 
+
+'''
 class TransformerDisPtrGen2(TransformerDisPtrGen):
     def __init__(self, args, transformer, tokenizer):
         super(TransformerDisPtrGen2, self).__init__(args, transformer, tokenizer)
@@ -183,6 +220,8 @@ class TransformerDisPtrGen2(TransformerDisPtrGen):
         beta = torch.einsum('blv,v->bl', small_logit, self.keyword_bias)
         beta = torch.sigmoid(beta)
         return beta
+'''
+
 
 class TransformerDisSmallVocab(TransformerDisPtrGen):
     def __init__(self, args, transformer, tokenizer):

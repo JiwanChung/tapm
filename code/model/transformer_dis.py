@@ -47,7 +47,7 @@ class TransformerDis(HybridDis):
     def get_logits(self, o, keyword, gt=None):
         return self.net.lm_head(o), None, {}
 
-    def run_transformer(self, hypo, features, keyword, gt=None):
+    def run_transformer(self, hypo, features, keyword):
         h, past, head_mask = transformer_embed(self.net.transformer, hypo)
         h = self.add_keyword(h, keyword)
 
@@ -61,31 +61,35 @@ class TransformerDis(HybridDis):
 
         o = transformer_run_cells(self.net.transformer, h, past=past, head_mask=head_mask)[0]
         o = o[:, context.shape[1]:]
+
+        return o
+
+    def run_transformer_get_loss(self, hypo, features, keyword, group_mask=None, gt=None):
+        features = OrderedDict(sorted(features.items()))  # canonical ordering
+        res = OrderedDict()
+        for feature in self.feature_names:
+            res[feature] = getattr(self, feature)(features[feature], None)
+        o = self.run_transformer(hypo, res, keyword)
+
         o = self.dropout(o)
         c = o.mean(dim=1)
         c = self.reduce_c(c)
         logits, loss, stats = self.get_logits(o, keyword, gt)
         return logits, c, loss, stats
 
-    def run_token(self, features, hypo, h, c, keyword):
-        features = OrderedDict(sorted(features.items()))  # canonical ordering
-        for feature in self.feature_names:
-            features[feature] = getattr(self, feature)(features[feature], None)
-        logits, h = self.generate_token(hypo, features, c, h, keyword)
+    def run_token(self, features, hypo, h, c, group_mask, keyword):
+        logits, h = self.generate_token(hypo, features, c, h, group_mask, keyword)
         return h, c, logits
 
-    def run_train(self, hypo, features, keyword):
-        features = OrderedDict(sorted(features.items()))  # canonical ordering
-        for feature in self.feature_names:
-            features[feature] = getattr(self, feature)(features[feature], None)
-        return self.run_transformer(hypo, features, keyword, gt=hypo)
+    def run_train(self, hypo, features, keyword, group_mask=None):
+        return self.run_transformer_get_loss(hypo, features, keyword, group_mask, gt=hypo)
 
-    def generate_token(self, hypo, features, c, h, keyword):
-        logits, h, _, _ = self.run_transformer(hypo, features, keyword)
+    def generate_token(self, hypo, features, c, h, group_mask, keyword):
+        logits, h, _, _ = self.run_transformer_get_loss(hypo, features, keyword, group_mask)
         return logits, h
 
     def run_video(self, features, c, v, L, sentences=None, sampler=None,
-                  keyword=None, reduce_hypo=True):
+                  keyword=None, reduce_hypo=True, group_mask=None):
         video = features['video']
         B = video.shape[0]
         empty = torch.full((B, self.vocab_size), float('-inf')).to(video.device)
@@ -101,14 +105,14 @@ class TransformerDis(HybridDis):
         stats = {}
         small_loss = None
         if sentences is not None:  # training
-            sent, h, small_loss, stats = self.run_train(sentences[:, v], features, keyword)
+            sent, h, small_loss, stats = self.run_train(sentences[:, v], features, keyword, group_mask)
         else:
             for w in range(L):
                 if eos_flags.all():
                     logits = empty.clone()
                 else:
                     h = None
-                    h, c, logits = self.run_token(features, hypo, h, c, keyword=keyword)
+                    h, c, logits = self.run_token(features, hypo, h, c, group_mask, keyword=keyword)
                     s, probs = sampler(logits)
                     eos_flags = eos_flags | (logits[:, -1].argmax(dim=-1) == self.tokenizer.pad_id)
                 hypo = torch.cat((hypo, s.unsqueeze(-1)), dim=1)

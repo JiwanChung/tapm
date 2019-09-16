@@ -28,7 +28,7 @@ config = {
     'learning_rate': 5e-5,
     'warmup_steps': 4000,
     'grad_clip': None,
-    'grad_acc_steps': 4,
+    'grad_acc_steps': 1,
     'batch_sizes': {'train': 8, 'val': 8, 'test': 8},
     'max_epoch': 30,
     'eval_every': 1,
@@ -38,7 +38,7 @@ config = {
     'val_path': 'data/LSMDC/task1/LSMDC16_annos_val_someone.csv',
     'test_path': None,
     #'keyword_dir': 'keywords_top1000',
-    'keyword_name': None,
+    'keyword_name': 'keywords_gpt_top_1000.json',
     'num_workers': 32,
 
     'sample': False,

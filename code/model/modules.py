@@ -1,6 +1,9 @@
+import math
+
 import torch
 from torch import nn
 import torch.nn.functional as F
+from einops import rearrange
 
 
 class IdentityModule(nn.Module):
@@ -185,12 +188,14 @@ class ResBlock(nn.Module):
 
 
 class MLP(nn.Module):
-    def __init__(self, dim):
+    def __init__(self, in_dim, out_dim=None):
         super(MLP, self).__init__()
 
-        self.dim = dim
+        if out_dim is None:
+            out_dim = in_dim
+        self.dim = out_dim
 
-        self.l1 = nn.Linear(self.dim, self.dim)
+        self.l1 = nn.Linear(in_dim, self.dim)
         self.l2 = nn.Linear(self.dim, self.dim)
 
     def forward(self, x):
@@ -200,3 +205,64 @@ class MLP(nn.Module):
         return x
 
 
+class MultiHeadAttention(nn.Module):
+    def __init__(self, q_dim, k_dim=None, v_dim=None, m_dim=None, heads=1):
+        super().__init__()
+
+        if k_dim is None:
+            k_dim = q_dim
+        if v_dim is None:
+            v_dim = k_dim
+        if m_dim is None:
+            m_dim = q_dim
+
+        heads = 1 if q_dim < heads else heads
+        heads = 1 if k_dim < heads else heads
+        heads = 1 if v_dim < heads else heads
+
+        assert q_dim % heads == 0, f"q_dim: {q_dim} / n_heads: {heads} must be divisible"
+        assert k_dim % heads == 0, f"k_dim: {k_dim} / n_heads: {heads} must be divisible"
+        assert v_dim % heads == 0, f"v_dim: {v_dim} / n_heads: {heads} must be divisible"
+        assert m_dim % heads == 0, f"m_dim: {m_dim} / n_heads: {heads} must be divisible"
+
+        self.q = nn.Linear(q_dim // heads, m_dim // heads)
+        self.k = nn.Linear(k_dim // heads, m_dim // heads)
+        self.v = nn.Linear(v_dim // heads, m_dim // heads)
+        self.heads = heads
+
+    def forward(self, q, k=None, v=None, bidirectional=False):
+        if k is None:
+            k = q.clone()
+        if v is None:
+            v = k.clone()
+        # BLC
+
+        q = rearrange(q, 'b q (h c) -> b h q c', h=self.heads)
+        k = rearrange(k, 'b k (h c) -> b h k c', h=self.heads)
+        v = rearrange(v, 'b k (h c) -> b h k c', h=self.heads)
+
+        q = self.q(q)
+        k = self.k(k)
+        v = self.v(v)
+
+        a = torch.einsum('bhqc,bhkc->bhqk', q, k)
+        a = a / math.sqrt(k.shape[-1])
+        a_q = F.softmax(a, dim=-1)  # bhqk
+        q_new = torch.einsum('bhqk,bhkc->bhqc', a_q, v)
+        q_new = rearrange(q_new, 'b h q c -> b q (h c)')
+
+        if bidirectional:
+            a_v = F.softmax(a, dim=-2)  # bhqk
+            v = torch.einsum('bhqk,bhqc->bhkc', a_v, q)
+            v = rearrange(v, 'b h k c -> b k (h c)')
+            return q_new, v
+        else:
+            return q_new
+
+
+class SelfAttention(MultiHeadAttention):
+    def __init__(self, q_dim, m_dim=None, heads=1):
+        super().__init__(q_dim, k_dim=q_dim, v_dim=q_dim, m_dim=m_dim, heads=heads)
+
+    def forward(self, q, bidirectional=False):
+        return super().forward(q, q, q, bidirectional=bidirectional)
