@@ -33,6 +33,7 @@ config = {
     'learning_rate': 5e-5,
     'warmup_steps': 4000,
     'grad_clip': None,
+    'grad_acc_steps': 4,
     'batch_sizes': {'train': 8, 'val': 8, 'test': 8},
     'max_epoch': 30,
     'eval_every': 1,
