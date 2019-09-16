@@ -196,9 +196,9 @@ class HybridDis(TransformerModel):
         L = batch.sentences.shape[2] if hasattr(batch, 'sentences') else self.max_target_len
         sent_gt = batch.sentences if hasattr(batch, 'sentences') else None
 
-        if (not hasattr(self, 'keyword_map')) and hasattr(batch, 'keyword_map'):
+        if (not hasattr(self, 'keyword_map')) and hasattr(batch, 'keyword_map') and batch.keyword_map is not None:
             self.keyword_map = self.get_keyword_map(batch.keyword_map)
-        if (not hasattr(self, 'keyword_freq')) and hasattr(batch, 'word_counter'):
+        if (not hasattr(self, 'keyword_freq')) and hasattr(batch, 'word_counter') and batch.keyword_counter is not None:
             self.keyword_freq = self.get_keyword_freq(batch, video.device)
 
         features = {k: val for k, val \
@@ -228,7 +228,10 @@ class HybridDis(TransformerModel):
         stats = {**stats, **vid_stats}
         del batch.sentences  # for generation
         small_loss = None if losses[0] is None else mean(losses)
-        reg_loss = reg_loss + small_loss
+        if reg_loss is None:
+            reg_loss = small_loss
+        elif small_loss is not None:
+            reg_loss = reg_loss + small_loss
         return torch.stack(res, 1).contiguous(), batch.targets, reg_loss, stats, batch
 
 

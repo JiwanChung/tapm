@@ -22,6 +22,7 @@ def evaluate(args, model, loss_fn, optimizer, tokenizer, dataloaders,
         'lstm_keyword_lm': evaluate_sample,
         'hybrid_dis': evaluate_sample,
         'transformer_dis': evaluate_sample,
+        'transformer_dis2': evaluate_sample,
         'transformer_dis_ptr_gen': evaluate_sample,
         'transformer_dis_ptr_gen2': evaluate_sample,
         'task2_baseline': evaluate_base,
@@ -142,6 +143,7 @@ def evaluate_sample(args, model, loss_fn, tokenizer, dataloaders,
                     }}
                 else:
                     final_loss = loss
+                    stats = {'final_loss': loss.item(), **stats}
             else:
                 final_loss = reg_loss
                 stats = {
@@ -153,6 +155,11 @@ def evaluate_sample(args, model, loss_fn, tokenizer, dataloaders,
                 stats = {**stats, **added_stats}
 
             n_step += 1
+
+            for k, v in stats.items():
+                if v is not None:
+                    epoch_stats[k] = epoch_stats[k] + B * v
+            epoch_stats['num'] = epoch_stats['num'] + B
 
             if args.eval_metric and logits is not None:
                 hypos = logits.argmax(dim=-1)
@@ -190,10 +197,6 @@ def evaluate_sample(args, model, loss_fn, tokenizer, dataloaders,
 
                 recurse(batch.targets.shape[:-1], batch.targets, hypos,
                         vid=batch.vid, func=calc)
-
-            for k, v in stats.items():
-                epoch_stats[k] = epoch_stats[k] + B * v
-            epoch_stats['num'] = epoch_stats['num'] + B
 
             def log_text(targets, hypos, keywords=None, vid=None):
                 nonlocal text_logging_step
