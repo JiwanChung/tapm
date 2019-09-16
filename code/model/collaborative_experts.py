@@ -45,10 +45,6 @@ class CollaborativeExpertsWrapper(CollaborativeExperts):
 
         self.expand_o = nn.Linear(self.dim, self.dim * len(self.feature_names))
 
-    def random_roll(self, x, dim=0):
-        shift = randint(1, x.shape[dim] - 1)
-        return torch.roll(x, shift, dim), shift
-
     def get_shifted_and_mask(self, mask, shift, dim=0):
         shifted_mask = torch.roll(mask, shift, dim)
         return mask & shifted_mask
@@ -59,23 +55,47 @@ class CollaborativeExpertsWrapper(CollaborativeExperts):
             loss = loss.masked_select(mask)
         return loss.mean()
 
+    def get_batch_max_margin_ranking_loss(self, s, mask=None):
+        # i b (i==0 -> true), i b
+        s_true = s[0].unsqueeze(0)
+        s_false = s[1:]
+        loss = torch.max(torch.zeros(1).to(s_true.device), self.margin + s_false - s_true)  # (i-1) b
+        num_element = loss.nelement()
+        if mask is not None:
+            mask = mask[1:]
+            loss = loss.masked_select(mask)
+            num_element = mask.float().sum()
+        return loss.sum() / num_element
+
+    def calc_loss(self, x1, x2, group_mask):
+        x2 = x2.unsqueeze(0).repeat(x2.shape[0], 1, 1)  # BBC
+        group_mask_rolled = group_mask.unsqueeze(0).repeat(group_mask.shape[0], 1)  # BB
+
+        # get permutations
+        for i in range(x2.shape[0]):
+            x2[i] = torch.roll(x2[i], i, 0)
+            group_mask_rolled[i] = torch.roll(group_mask_rolled[i], i, 0)
+
+        s = torch.einsum('bc,ibc->ib', x1, x2)
+        mask = group_mask_rolled & group_mask.unsqueeze(0)
+        loss = self.get_batch_max_margin_ranking_loss(s, mask)
+
+        return loss
+
     def forward(self, o, features, group_mask=None):
         feature = super()._forward(features)  # BC
         o = self.pool(o)
         o = self.expand_o(o)  # BC
         o = F.normalize(o)
-        s_true = torch.einsum('bc,bc->b', o, feature)
-        wrong_batch, shift_batch = self.random_roll(feature, dim=0)
-        s_wrong_batch = torch.einsum('bc,bc->b', o, wrong_batch)
-        mask_batch = self.get_shifted_and_mask(group_mask, shift_batch, dim=0)
 
-        batch_loss = self.get_max_margin_ranking_loss(s_true, s_wrong_batch, mask_batch)
+        loss1 = self.calc_loss(o, feature, group_mask)
+        loss2 = self.calc_loss(feature, o, group_mask)  # bidirectional
 
-        loss = batch_loss
+        loss = (loss1 + loss2).mean()
 
         with torch.no_grad():
             stats = {
-                'ranking_batch_loss': batch_loss.item(),
+                'ranking_loss': loss.item(),
             }
 
         return loss, stats
