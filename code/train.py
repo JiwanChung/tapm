@@ -22,8 +22,8 @@ def train(args, model, loss_fn, optimizer, tokenizer, dataloaders, logger):
         model.train()
         if hasattr(model, 'epoch_update'):
             model.epoch_update(epoch)
+        optimizer.zero_grad()
         for batch in tqdm(dataloader, total=len(dataloader)):
-            optimizer.zero_grad()
             batch = move_device(batch, to=args.device)
             B = batch['sentences'].shape[0] if torch.is_tensor(batch['sentences']) else len(batch['sentences'])
             targets = batch['targets']
@@ -49,9 +49,11 @@ def train(args, model, loss_fn, optimizer, tokenizer, dataloaders, logger):
                 }
 
             final_loss.backward()
-            optimizer.clip_grad()
-            optimizer.step()
-            optimizer.scheduler.step()
+            if (n_step + 1) % args.grad_acc_steps == 0:
+                optimizer.clip_grad()
+                optimizer.step()
+                optimizer.scheduler.step()
+                optimizer.zero_grad()
 
             if added_stats is not None:
                 stats = {**stats, **added_stats}
