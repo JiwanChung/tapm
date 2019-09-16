@@ -135,11 +135,12 @@ def load_features(args, path, data_keys):
     path = path.parent.parent.glob(f"features/*")
     path = [p for p in list(path) if p.name in args.feature_names or \
             (p.name in args.feature_name_map and args.feature_name_map[p.name] in args.feature_names)]
-    feature_name_map = {v: k for k, v in args.feature_name_map.items()}
     features = {}
+    feature_names = copy.deepcopy(args.feature_names)
+    reverse_map = {v: k for k, v in args.feature_name_map.items()}
+    feature_names = [reverse_map[x] if x in reverse_map else x for x in feature_names]
     for p in path:
-        if p.stem in args.feature_names or \
-                feature_name_map[p.stem] in args.feature_names:
+        if p.stem in feature_names:
             print(f"loading feature {p}")
             features[p.name] = load_feature(p, data_keys)
     all_feature = {}
