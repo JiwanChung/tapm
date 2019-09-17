@@ -48,6 +48,10 @@ class TransformerDis(HybridDis):
     def get_logits(self, o, keyword, gt=None):
         return self.net.lm_head(o), None, {}
 
+    def merge_context(self, features, cls_embd, sep_embd):
+        features = OrderedDict(sorted(features.items()))  # canonical ordering
+        return torch.cat((cls_embd, *chain(*[(feature, sep_embd) for feature in features.values()])), dim=1)
+
     def run_transformer(self, hypo, features, keyword):
         h, past, head_mask = transformer_embed(self.net.transformer, hypo)
         h = self.add_keyword(h, keyword)
@@ -57,7 +61,7 @@ class TransformerDis(HybridDis):
         B, L, C = h.shape
         cls_embd = cls_embd.view(1, 1, -1).contiguous().expand(B, 1, -1)
         sep_embd = sep_embd.view(1, 1, -1).contiguous().expand(B, 1, -1)
-        context = torch.cat((cls_embd, *chain(*[(feature, sep_embd) for feature in features.values()])), dim=1)
+        context = self.merge_context(features, cls_embd, sep_embd)
         h = torch.cat((context, h), dim=1)
 
         o = transformer_run_cells(self.net.transformer, h, past=past, head_mask=head_mask)[0]

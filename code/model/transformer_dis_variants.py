@@ -38,6 +38,18 @@ class TransformerDis2(TransformerDis):
         return probs + self.eps
 '''
 
+class TransformerDisPool(TransformerDis):
+    def __init__(self, args, transformer, tokenizer):
+        super(TransformerDisPool, self).__init__(args, transformer, tokenizer)
+
+    def merge_context(self, features, cls_embd, sep_embd):
+        features = OrderedDict(sorted(features.items()))  # canonical ordering
+        shapes = {k: v.shape for k, v in features.items()}
+        features = list(features.values())  # ordereddict
+        assert len(set(list(shapes.values()))) < 2, f"feature shape does not match! {shapes}"
+        features = sum(features) / len(features)
+        return torch.cat((cls_embd, features, sep_embd), dim=1)
+
 
 class TransformerDisCE(TransformerDis):
     def __init__(self, args, transformer, tokenizer):
