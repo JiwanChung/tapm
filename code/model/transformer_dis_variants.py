@@ -8,9 +8,10 @@ from einops import rearrange
 from tensor_utils import onehot
 from loss import SmoothLoss
 
+from transformers import transformer_embed
 from .transformer_dis import TransformerDis
-from .modules import MLP
-from .collaborative_experts import CollaborativeExpertsWrapper
+from .modules import MLP, SelfAttention
+from .collaborative_experts import CollaborativeExpertsWrapper, calc_ranking_loss
 
 
 '''
@@ -42,6 +43,7 @@ class TransformerDisCE(TransformerDis):
     def __init__(self, args, transformer, tokenizer):
         super(TransformerDisCE, self).__init__(args, transformer, tokenizer)
 
+        self.self_attention = SelfAttention(self.gpt_dim, heads=4)
         self.ce = CollaborativeExpertsWrapper(
             self.feature_names,
             self.video_dim,
@@ -55,9 +57,51 @@ class TransformerDisCE(TransformerDis):
         res = OrderedDict()
         for feature in self.feature_names:
             res[feature] = getattr(self, feature)(features[feature], None)
-        o = self.run_transformer(hypo, res, keyword)
+        o, _ = self.run_transformer(hypo, res, keyword)
 
-        rank_loss, stats = self.ce(o, features, group_mask)
+        rank_loss, stats = self.get_ranking(hypo, features, group_mask)
+
+        o = self.dropout(o)
+        c = o.mean(dim=1)
+        c = self.reduce_c(c)
+        logits, _, _ = self.get_logits(o, keyword, gt)
+        return logits, c, rank_loss, stats
+
+    def get_ranking(self, hypo, features, group_mask):
+        h, _, _ = transformer_embed(self.net.transformer, hypo)
+        h = self.self_attention(h.detach())
+        rank_loss, stats = self.ce(h, features, group_mask)
+
+        return rank_loss, stats
+
+
+# ranking loss for feature just before GPT2
+class TransformerDisRank(TransformerDis):
+    def __init__(self, args, transformer, tokenizer):
+        super(TransformerDisRank, self).__init__(args, transformer, tokenizer)
+
+        self.margin = args.get('margin', 1)
+
+    def get_rank_loss(self, o, feature, group_mask):
+        x1 = F.normalize(o.mean(dim=1))  # BC
+        x2 = F.normalize(feature)  # BC
+
+        loss1 = calc_ranking_loss(x1, x2, group_mask, margin=self.margin)
+        loss2 = calc_ranking_loss(x2, x1, group_mask, margin=self.margin)
+
+        loss = (loss1 + loss2).mean()
+        return loss, {'ranking_loss': loss.item()}
+
+    def run_transformer_get_loss(self, hypo, features, keyword, group_mask=None, gt=None):
+        features = OrderedDict(sorted(features.items()))  # canonical ordering
+        res = OrderedDict()
+        for feature in self.feature_names:
+            res[feature] = getattr(self, feature)(features[feature], None)
+        o, _ = self.run_transformer(hypo, res, keyword)  # BLC, BRC
+
+        feature = sum([x.mean(dim=1) for x in res.values()])
+
+        rank_loss, stats = self.get_rank_loss(o, feature, group_mask)
 
         o = self.dropout(o)
         c = o.mean(dim=1)

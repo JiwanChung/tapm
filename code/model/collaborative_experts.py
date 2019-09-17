@@ -55,41 +55,14 @@ class CollaborativeExpertsWrapper(CollaborativeExperts):
             loss = loss.masked_select(mask)
         return loss.mean()
 
-    def get_batch_max_margin_ranking_loss(self, s, mask=None):
-        # i b (i==0 -> true), i b
-        s_true = s[0].unsqueeze(0)
-        s_false = s[1:]
-        loss = torch.max(torch.zeros(1).to(s_true.device), self.margin + s_false - s_true)  # (i-1) b
-        num_element = loss.nelement()
-        if mask is not None:
-            mask = mask[1:]
-            loss = loss.masked_select(mask)
-            num_element = mask.float().sum()
-        return loss.sum() / num_element
-
-    def calc_loss(self, x1, x2, group_mask):
-        x2 = x2.unsqueeze(0).repeat(x2.shape[0], 1, 1)  # BBC
-        group_mask_rolled = group_mask.unsqueeze(0).repeat(group_mask.shape[0], 1)  # BB
-
-        # get permutations
-        for i in range(x2.shape[0]):
-            x2[i] = torch.roll(x2[i], i, 0)
-            group_mask_rolled[i] = torch.roll(group_mask_rolled[i], i, 0)
-
-        s = torch.einsum('bc,ibc->ib', x1, x2)
-        mask = group_mask_rolled & group_mask.unsqueeze(0)
-        loss = self.get_batch_max_margin_ranking_loss(s, mask)
-
-        return loss
-
     def forward(self, o, features, group_mask=None):
         feature = super()._forward(features)  # BC
         o = self.pool(o)
         o = self.expand_o(o)  # BC
         o = F.normalize(o)
 
-        loss1 = self.calc_loss(o, feature, group_mask)
-        loss2 = self.calc_loss(feature, o, group_mask)  # bidirectional
+        loss1 = calc_ranking_loss(o, feature, group_mask, margin=self.margin)
+        loss2 = calc_ranking_loss(feature, o, group_mask, margin=self.margin)  # bidirectional
 
         loss = (loss1 + loss2).mean()
 
@@ -147,3 +120,32 @@ class FeatureEncoderOut(nn.Module):
     def forward(self, feature):
         feature = self.linear(feature)
         return F.normalize(feature)
+
+
+def get_batch_max_margin_ranking_loss(s, margin, mask=None):
+    # i b (i==0 -> true), i b
+    s_true = s[0].unsqueeze(0)
+    s_false = s[1:]
+    loss = torch.max(torch.zeros(1).to(s_true.device), margin + s_false - s_true)  # (i-1) b
+    num_element = loss.nelement()
+    if mask is not None:
+        mask = mask[1:]
+        loss = loss.masked_select(mask)
+        num_element = mask.float().sum()
+    return loss.sum() / num_element
+
+
+def calc_ranking_loss(x1, x2, group_mask=None, margin=1):
+    x2 = x2.unsqueeze(0).repeat(x2.shape[0], 1, 1)  # BBC
+    group_mask_rolled = group_mask.unsqueeze(0).repeat(group_mask.shape[0], 1)  # BB
+
+    # get permutations
+    for i in range(x2.shape[0]):
+        x2[i] = torch.roll(x2[i], i, 0)
+        group_mask_rolled[i] = torch.roll(group_mask_rolled[i], i, 0)
+
+    s = torch.einsum('bc,ibc->ib', x1, x2)
+    mask = group_mask_rolled & group_mask.unsqueeze(0)
+    loss = get_batch_max_margin_ranking_loss(s, margin, mask)
+
+    return loss
