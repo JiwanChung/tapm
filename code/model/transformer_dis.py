@@ -25,7 +25,8 @@ class TransformerDis(HybridDis):
         self.keyword_classifier = KeywordClassifier(
             self.net.transformer.wte,
             self.keyword_num, self.dim, self.feature_names,
-            self.video_dim, self.image_dim, self.flow_dim, self.dropout_ratio,
+            self.video_dim, self.image_dim, self.flow_dim, self.box_dim,
+            self.dropout_ratio,
             recall_k=self.k,
             loss_type=self.keyword_loss_type
         )

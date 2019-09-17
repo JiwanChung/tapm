@@ -10,12 +10,12 @@ config = {
     'extract_keyword': False,
     'extraction_threshold': 1,
     'extraction_min_words': 2,
-    'feature_names': ['video', 'image', 'flow', 'box'],
+    'feature_names': ['video', 'image', 'flow'],#, 'box'],
     'feature_name_map': {
         'i3d_rgb': 'video',
-        'resnet152_2': 'image',
-        'i3d_flow': 'flow',
-        'rcnn': 'box'
+        'resnet': 'image',
+        'i3d_flow': 'flow'
+        #'rcnn': 'box'
     },
     'max_vocab': None,
     'pretrained_embedding': None,

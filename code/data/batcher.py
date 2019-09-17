@@ -260,15 +260,6 @@ def make_feature_lm_batch_with_keywords(tokenizer, data, keywords=None, word_cou
     targets, _ = pad(targets, tokenizer.pad_id)
     lengths, _ = pad(lengths, 0)
 
-    feature_name_map = {v: k for k, v in feature_name_map.items()}
-    video = data[feature_name_map['video']]
-    image = data[feature_name_map['image']]
-    flow = data[feature_name_map['flow']]
-    box = data[feature_name_map['box']]
-    image = pad_tensor(image, 0)
-    video = pad_tensor(video, 0)
-    flow = pad_tensor(flow, 0)
-    box = pad_tensor(box, 0)
     if keywords is not None:
         keyword_masks = pad_tensor(keyword_masks, 0)
     else:
@@ -279,27 +270,30 @@ def make_feature_lm_batch_with_keywords(tokenizer, data, keywords=None, word_cou
 
     # TODO: Account for tensor padding in loss calc!
 
-    return {'sentences': sentences,
-            'batch_lengths': batch_lengths,
-            'lengths': lengths,
-            'targets': targets,
-            'image': image,
-            'video': video,
-            'flow': flow,
-            'box': box,
-            'vid': data['vid'],
-            'keyword_masks': keyword_masks,
-            'keyword_map': keywords,
-            'word_subsets': word_subsets,
-            'keyword_counter': keyword_counter,
-            'word_counter': word_counter}
+    ret_batch =  {
+        'sentences': sentences,
+        'batch_lengths': batch_lengths,
+        'lengths': lengths,
+        'targets': targets,
+        'vid': data['vid'],
+        'keyword_masks': keyword_masks,
+        'keyword_map': keywords,
+        'word_subsets': word_subsets,
+        'keyword_counter': keyword_counter,
+        'word_counter': word_counter
+    }
 
+    # Process features if applicable
+    for k,v in feature_name_map.items():
+        ret_batch[v] = pad_tensor(data[k], 0)
+
+    return ret_batch
 
 def make_blank_filling_batch(tokenizer, data, feature_name_map={}, **kwargs):
     data = jsonl_to_json(data)
     sentences = data['input']
     targets = data['target']
-
+    '''
     feature_name_map = {v: k for k, v in feature_name_map.items()}
     video = data[feature_name_map['video']]
     image = data[feature_name_map['image']]
@@ -307,7 +301,7 @@ def make_blank_filling_batch(tokenizer, data, feature_name_map={}, **kwargs):
     image = pad_tensor(image, 0)
     video = pad_tensor(video, 0)
     flow = pad_tensor(flow, 0)
-
+    '''
     sentences = [tokenizer.encode(t) for t in sentences]
     sentences = [torch.Tensor(t) for t in sentences]
     sentences, lengths = pad(sentences, tokenizer.pad_id)
@@ -317,15 +311,19 @@ def make_blank_filling_batch(tokenizer, data, feature_name_map={}, **kwargs):
 
     blank_ids = sentences == tokenizer.convert_tokens_to_ids(tokenizer.blank)
 
-    return {'sentences': sentences,
-            'lengths': lengths,
-            'targets': targets,
-            'blank_ids': blank_ids,
-            'blank_num': data['blank_num'],
-            'image': image,
-            'video': video,
-            'flow': flow,
-            'vid': data['vid']}
+    ret_batch = {
+        'sentences': sentences,
+        'lengths': lengths,
+        'targets': targets,
+        'blank_ids': blank_ids,
+        'blank_num': data['blank_num'],
+        'vid': data['vid']
+    }
+
+    for k,v in feature_name_map.items():
+        ret_batch[v] = pad_tensor(data[k], 0)
+
+    return ret_batch
 
 
 def pad(x, pad_id=0):

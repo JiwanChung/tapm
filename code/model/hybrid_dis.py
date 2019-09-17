@@ -33,7 +33,7 @@ class HybridDis(TransformerModel):
         self.video_dim = args.get('video_dim', 1024)
         self.image_dim = args.get('image_dim', 2048)
         self.flow_dim = args.get('flow_dim', 1024)
-        self.object_dim = args.get('box_dim', 1600)
+        self.box_dim = args.get('box_dim', 1600)
         self.keyword_num = args.get('keyword_num', 1000)
         self.dropout_ratio = args.get('dropout', 0.5)
         self.feature_names = args.get('feature_names',

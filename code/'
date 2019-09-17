@@ -140,9 +140,10 @@ def load_features(args, path, data_keys):
     reverse_map = {v: k for k, v in args.feature_name_map.items()}
     feature_names = [reverse_map[x] if x in reverse_map else x for x in feature_names]
     for p in path:
-        if p.stem in feature_names and p.stem != 'rcnn':
+        if p.stem in feature_names and p.stem is not 'rcnn':
+            print(f"loading feature {p}")
             features[p.name] = load_feature(p, data_keys)
-        elif p.stem in feature_names and p.stem == 'rcnn':
+        elif p.stem in feature_names and p.stem is 'rcnn':
             features[p.name] = load_feature_box(p, data_keys)
     all_feature = {}
     for k in features[list(features.keys())[0]].keys():
@@ -170,20 +171,18 @@ def load_feature_box(path, keys):
         f1_name = '_'.join(k.split('_')[:-1])
         f2_name = k
         p = path[f1_name][f2_name]
-        feat = np.load(p).tolist()
-        feat = list(map(box_preprocess, feat))
-        res[k] = mean_pool_segments(np.asarray(feat, dtype=np.float32))
+        feat = map(box_preprocess, np.load(p))
+        res[k] = mean_pool_segments(feat)
     return res
 
 
 def box_preprocess(feat):
     # T=1, Object(20), Info(6 - prob, idx, bbox)
-    ret = [0 for i in range(1600)]
-    for i in range(len(feat)):
-        if ret[int(feat[i][1])-1] < feat[i][0]:
-            ret[int(feat[i][1])-1] = feat[i][0]
-    return ret
-    #return np.asarray(ret, dtype=np.float32)
+    ret = np.zeros(1600)
+    for i in feat.shape[0]:
+        if ret[feat[i][1]-1] < feat[i][0]:
+            ret[feat[i][1]-1] = feat[i][0]
+    return np.asarray(ret, dtype=np.float64)
 
 
 def load_lsmdc_text(args, path):
