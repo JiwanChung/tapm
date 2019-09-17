@@ -10,12 +10,12 @@ config = {
     'extract_keyword': False,
     'extraction_threshold': 1,
     'extraction_min_words': 2,
-    'feature_names': ['video', 'image', 'flow'],#, 'box'],
+    'feature_names': ['video', 'image', 'flow', 'box'],
     'feature_name_map': {
         'i3d_rgb': 'video',
         'resnet': 'image',
-        'i3d_flow': 'flow'
-        #'rcnn': 'box'
+        'i3d_flow': 'flow',
+        'rcnn': 'box'
     },
     'max_vocab': None,
     'pretrained_embedding': None,
@@ -33,7 +33,7 @@ config = {
     'learning_rate': 5e-5,
     'warmup_steps': 4000,
     'grad_clip': None,
-    'grad_acc_steps': 4,
+    'grad_acc_steps': 1,
     'batch_sizes': {'train': 8, 'val': 8, 'test': 8},
     'max_epoch': 30,
     'eval_every': 1,

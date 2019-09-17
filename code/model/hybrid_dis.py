@@ -130,7 +130,7 @@ class HybridDis(TransformerModel):
     def out_shared(self, x):
         return torch.matmul(x, self.wte.weight.t())
 
-    def generate_token(self, hypo, features, c, h, keyword):
+    def generate_token(self, hypo, features, c, h, keyword, group_mask=None):
         s = hypo[:, -1]  # get last token
         s = self.wte(s).unsqueeze(1)  # B1C
         s = torch.cat((features, c, s), dim=-1)
@@ -139,16 +139,16 @@ class HybridDis(TransformerModel):
         logits = self.out(o)  # BV
         return logits, h
 
-    def run_token(self, features, hypo, h, c, keyword):
+    def run_token(self, features, hypo, h, c, keyword, group_mask):
         features = OrderedDict(sorted(features.items()))  # canonical ordering
         for feature in self.feature_names:
             features[feature] = getattr(self, feature)(features[feature], h)
         features = self.encoder(torch.cat(list(features.values()), dim=-1))
-        logits, h = self.generate_token(hypo, features, c, h, keyword)
+        logits, h = self.generate_token(hypo, features, c, h, keyword, group_mask)
         return h, c, logits
 
     def run_video(self, features, c, v, L, sentences=None, sampler=None,
-                  keyword=None, reduce_hypo=True):
+                  keyword=None, reduce_hypo=True, group_mask=None):
         video = features['video']
         B = video.shape[0]
         empty = torch.full((B, self.vocab_size), float('-inf')).to(video.device)
@@ -221,7 +221,9 @@ class HybridDis(TransformerModel):
             feature = {k: val[:, v] for k, val in features.items()}
             c = self.rnn.init_c(B, self.context_dim, device=video.device) if hasattr(self, 'rnn') else None
             keyword = keywords[:, v] if keywords is not None else None
-            c, sent, _, small_loss, vid_stat = self.run_video(feature, c, v, L, sentences=sent_gt, keyword=keyword)
+            c, sent, _, small_loss, vid_stat = self.run_video(feature, c, v, L,
+                                                              sentences=sent_gt, keyword=keyword,
+                                                              group_mask=batch.group_mask[:, v])
             losses.append(small_loss)
             vid_stats.append(vid_stat)
             res.append(sent)  # BLV

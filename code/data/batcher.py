@@ -227,6 +227,12 @@ def make_feature_lm_batch_with_keywords(tokenizer, data, keywords=None, word_cou
     # data: list of chunks: list of [item dict]
     data = jsonl_to_json(data)
     batch_sentences = data['target']
+
+    group_length = [len(i) for i in data['vid']]
+    group_mask = torch.zeros(len(data['vid']), max(group_length)).byte()
+    for i, length in enumerate(group_length):
+        group_mask[i, :length] = 1
+
     keyword_counter = keywords
     if keywords is not None:
         # restore gpt token prefix
@@ -288,6 +294,7 @@ def make_feature_lm_batch_with_keywords(tokenizer, data, keywords=None, word_cou
         ret_batch[v] = pad_tensor(data[k], 0)
 
     return ret_batch
+
 
 def make_blank_filling_batch(tokenizer, data, feature_name_map={}, **kwargs):
     data = jsonl_to_json(data)

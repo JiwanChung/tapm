@@ -1,3 +1,5 @@
+from collections import OrderedDict
+
 import torch
 from torch import nn
 import torch.nn.functional as F
@@ -6,10 +8,13 @@ from einops import rearrange
 from tensor_utils import onehot
 from loss import SmoothLoss
 
+from transformers import transformer_embed
 from .transformer_dis import TransformerDis
-from .modules import MLP
+from .modules import MLP, SelfAttention
+from .collaborative_experts import CollaborativeExpertsWrapper, calc_ranking_loss
 
 
+'''
 class TransformerDis2(TransformerDis):
     def __init__(self, args, transformer, tokenizer):
         super(TransformerDis2, self).__init__(args, transformer, tokenizer)
@@ -31,8 +36,93 @@ class TransformerDis2(TransformerDis):
 
     def smooth(self, probs):
         return probs + self.eps
+'''
+
+class TransformerDisPool(TransformerDis):
+    def __init__(self, args, transformer, tokenizer):
+        super(TransformerDisPool, self).__init__(args, transformer, tokenizer)
+
+    def merge_context(self, features, cls_embd, sep_embd):
+        features = OrderedDict(sorted(features.items()))  # canonical ordering
+        shapes = {k: v.shape for k, v in features.items()}
+        features = list(features.values())  # ordereddict
+        assert len(set(list(shapes.values()))) < 2, f"feature shape does not match! {shapes}"
+        features = sum(features) / len(features)
+        return torch.cat((cls_embd, features, sep_embd), dim=1)
 
 
+class TransformerDisCE(TransformerDis):
+    def __init__(self, args, transformer, tokenizer):
+        super(TransformerDisCE, self).__init__(args, transformer, tokenizer)
+
+        self.self_attention = SelfAttention(self.gpt_dim, heads=4)
+        self.ce = CollaborativeExpertsWrapper(
+            self.feature_names,
+            self.video_dim,
+            self.image_dim,
+            self.flow_dim,
+            self.gpt_dim
+        )
+
+    def run_transformer_get_loss(self, hypo, features, keyword, group_mask=None, gt=None):
+        features = OrderedDict(sorted(features.items()))  # canonical ordering
+        res = OrderedDict()
+        for feature in self.feature_names:
+            res[feature] = getattr(self, feature)(features[feature], None)
+        o, _ = self.run_transformer(hypo, res, keyword)
+
+        rank_loss, stats = self.get_ranking(hypo, features, group_mask)
+
+        o = self.dropout(o)
+        c = o.mean(dim=1)
+        c = self.reduce_c(c)
+        logits, _, _ = self.get_logits(o, keyword, gt)
+        return logits, c, rank_loss, stats
+
+    def get_ranking(self, hypo, features, group_mask):
+        h, _, _ = transformer_embed(self.net.transformer, hypo)
+        h = self.self_attention(h.detach())
+        rank_loss, stats = self.ce(h, features, group_mask)
+
+        return rank_loss, stats
+
+
+# ranking loss for feature just before GPT2
+class TransformerDisRank(TransformerDis):
+    def __init__(self, args, transformer, tokenizer):
+        super(TransformerDisRank, self).__init__(args, transformer, tokenizer)
+
+        self.margin = args.get('margin', 1)
+
+    def get_rank_loss(self, o, feature, group_mask):
+        x1 = F.normalize(o.mean(dim=1))  # BC
+        x2 = F.normalize(feature)  # BC
+
+        loss1 = calc_ranking_loss(x1, x2, group_mask, margin=self.margin)
+        loss2 = calc_ranking_loss(x2, x1, group_mask, margin=self.margin)
+
+        loss = (loss1 + loss2).mean()
+        return loss, {'ranking_loss': loss.item()}
+
+    def run_transformer_get_loss(self, hypo, features, keyword, group_mask=None, gt=None):
+        features = OrderedDict(sorted(features.items()))  # canonical ordering
+        res = OrderedDict()
+        for feature in self.feature_names:
+            res[feature] = getattr(self, feature)(features[feature], None)
+        o, _ = self.run_transformer(hypo, res, keyword)  # BLC, BRC
+
+        feature = sum([x.mean(dim=1) for x in res.values()])
+
+        rank_loss, stats = self.get_rank_loss(o, feature, group_mask)
+
+        o = self.dropout(o)
+        c = o.mean(dim=1)
+        c = self.reduce_c(c)
+        logits, _, _ = self.get_logits(o, keyword, gt)
+        return logits, c, rank_loss, stats
+
+
+'''
 class TransformerDis3(TransformerDis2):
     def __init__(self, args, transformer, tokenizer):
         super(TransformerDis3, self).__init__(args, transformer, tokenizer)
@@ -46,9 +136,10 @@ class TransformerDis3(TransformerDis2):
         keyword = self.smooth(keyword)
         o = self.net.lm_head(o)
         return o * keyword.unsqueeze(1).expand(-1, o.shape[1], -1), None, {}
+'''
 
 
-class TransformerDisMoe(TransformerDis2):
+class TransformerDisMoe(TransformerDis):
     def __init__(self, args, transformer, tokenizer):
         super(TransformerDisMoe, self).__init__(args, transformer, tokenizer)
 
@@ -84,7 +175,7 @@ class TransformerDisMoe(TransformerDis2):
         return o, None, {}
 
 
-class TransformerDisPtrGen(TransformerDis2):
+class TransformerDisPtrGen(TransformerDis):
     def __init__(self, args, transformer, tokenizer):
         super(TransformerDisPtrGen, self).__init__(args, transformer, tokenizer)
 
@@ -167,6 +258,8 @@ class TransformerDisPtrGen(TransformerDis2):
         logits = self.drop_connect(beta, big_logit, small_logit)
         return logits, loss, stats
 
+
+'''
 class TransformerDisPtrGen2(TransformerDisPtrGen):
     def __init__(self, args, transformer, tokenizer):
         super(TransformerDisPtrGen2, self).__init__(args, transformer, tokenizer)
@@ -183,6 +276,8 @@ class TransformerDisPtrGen2(TransformerDisPtrGen):
         beta = torch.einsum('blv,v->bl', small_logit, self.keyword_bias)
         beta = torch.sigmoid(beta)
         return beta
+'''
+
 
 class TransformerDisSmallVocab(TransformerDisPtrGen):
     def __init__(self, args, transformer, tokenizer):
