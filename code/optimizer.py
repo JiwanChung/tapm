@@ -6,7 +6,7 @@ from torch import optim
 
 
 def get_optimizer(args, model, dataloaders):
-    grad_acc_steps = 1
+    grad_acc_steps = args.get('grac_acc_steps', 1)
     t_total = len(dataloaders['train']) // grad_acc_steps * args.max_epoch
     param_optimizer = list(model.named_parameters())
     no_decay = ['bias', 'LayerNorm.bias', 'LayerNorm.weight']
