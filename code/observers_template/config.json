@@ -1,0 +1,9 @@
+{
+    "observe": true,
+    "hostname": "localhost",
+    "port": 27017,
+    "username": "USERNAME",
+    "password": "PASSWORD",
+    "mongo": true,
+    "slack": true
+}

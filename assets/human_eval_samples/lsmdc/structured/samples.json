@@ -1,0 +1,37 @@
+[
+    {
+        "vid": "3064_SPARKLE_2012_00.13.24.805-00.13.32.532",
+        "gt": "The rest of the group departs, leaving SOMEONE in the living room with SOMEONE.",
+        "ss": "SOMEONE and SOMEONE walk upstairs to find SOMEONE sitting on the stairs.",
+        "js": "someone walks up to someone and starts to walk away.",
+        "ns": "someone walks into the room."
+    },
+    {
+        "vid": "3064_SPARKLE_2012_00.13.32.000-00.13.35.062",
+        "gt": "SOMEONE hands her a Bible.",
+        "ss": "SOMEONE hands SOMEONE a note.",
+        "js": "someone opens the envelope.",
+        "ns": "someone opens the envelope."
+    },
+    {
+        "vid": "3064_SPARKLE_2012_00.13.34.697-00.13.37.438",
+        "gt": "and SOMEONE sets it down.",
+        "ss": "SOMEONE sits down.",
+        "js": "someone looks at her.",
+        "ns": "someone looks at her."
+    },
+    {
+        "vid": "3064_SPARKLE_2012_00.13.41.000-00.13.46.023",
+        "gt": "SOMEONE eyes her as SOMEONE walks away.",
+        "ss": "SOMEONE smiles and nods.",
+        "js": "someone looks at someone.",
+        "ns": "someone looks at someone."
+    },
+    {
+        "vid": "3064_SPARKLE_2012_00.13.45.500-00.13.48.300",
+        "gt": "SOMEONE notices SOMEONE.",
+        "ss": "SOMEONE answers her cell.",
+        "js": "someone smiles.",
+        "ns": "someone looks at someone."
+    }
+]

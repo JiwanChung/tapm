@@ -1,0 +1,5 @@
+{
+    "webhook_url": "WEBHOOK_URL,
+    "icon": "paw_prints",
+    "completed_text": ":heavy_check_mark: *{experiment[name]}* {host_info[hostname]} {config[log_tag]}\ncompleted after _{elapsed_time}_ with result=`{result}`"
+}
