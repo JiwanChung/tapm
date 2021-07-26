@@ -1,8 +1,7 @@
 # Transitional Adaptation of Pretrained Models for Visual Storytelling (TAPM)
 
 - Authors: Youngjae Yu1∗, Jiwan Chung*, Heeseung Yun, Jongseok Kim, Gunhee Kim
-- Paper: [To be released]()
-- Slides: [To be released]()
+- Paper: [CVPR2021](https://openaccess.thecvf.com/content/CVPR2021/html/Yu_Transitional_Adaptation_of_Pretrained_Models_for_Visual_Storytelling_CVPR_2021_paper.html)
 
 ## Introduction
 
@@ -14,6 +13,7 @@ Our simple adaptation objective aims to bridge the gap between the nature of the
 ![model architecture figure](assets/architecture.png)
 
 ## Requirements
+
 Python 3.7
 PyTorch 1.5
 
