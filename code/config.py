@@ -138,7 +138,7 @@ default_args = {
         'test': 'data/ActyNetCap/actynetcap/val_2.json',
     },
     #'keyword_dir': 'keywords_top1000',
-    'keyword_name': 'keywords_gpt_top_1000.json',
+    'keyword_name': None,
     'num_workers': 64,
 
     'sample': False,
