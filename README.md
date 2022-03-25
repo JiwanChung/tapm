@@ -56,6 +56,11 @@ From the downloaded files, extract and move the `task1` folder to under `$THIS_R
 The above link contains the two features: I3D and Resnet152.
 Extract and move both features to under `$THIS_REPO/data/LSMDC/features` directory.
 
+### ResNext Features
+We also provide alternative features extracted with ResNext.
+Note that to reproduce our results you need these features instead of the official ones.
+[Download](https://drive.google.com/uc?id=1dqfpX76QxVnOOThgY8-cuSG5m-0LVZZk)
+
 ## VIST
 Please follow the instructions on [Download](http://visionandlanguage.net/VIST/dataset.html) to download the dataset.
 
